@@ -37,7 +37,50 @@ The built-in sender is also capped at **2 emails per hour across the whole
 project**, and will only deliver to addresses on the project's team. Both limits
 disappear once custom SMTP is on.
 
-### Gmail as the SMTP provider
+### Resend as the SMTP provider — use this in production
+
+The sending address is **`noreply@tube-pulse.org`**, on the app's own domain.
+
+Anything else means verification codes arrive from a personal inbox, which is
+what this project shipped with first. It reads as a phishing attempt to anyone
+who does not already know you, it puts a personal address in front of every
+customer, and Gmail's own sending limits apply to your account rather than the
+product's.
+
+`noreply@` is deliberate: it accepts no replies. Customers who need a human use
+**`support@tube-pulse.org`**, which is printed in the site footer and in the
+workspace sidebar (`src/lib/support.ts`). The two addresses are separate on
+purpose — one sends and never listens, the other listens and never sends.
+
+1. Sign up at <https://resend.com> **as the account owner** and add the domain
+2. Add the DKIM, SPF and return-path records it prints, at your DNS provider
+3. Press **Verify** on Resend; it usually goes green in minutes
+4. Create an API key
+
+Then Supabase dashboard → **Authentication → Emails → SMTP Settings**:
+
+| Field | Value |
+| --- | --- |
+| Enable custom SMTP | on |
+| Sender email address | `noreply@tube-pulse.org` |
+| Sender name | `TubePulse` |
+| Host | `smtp.resend.com` |
+| Port number | `587` — **not 465** |
+| Minimum interval per user | `10` (the default `60` throttles testing) |
+| Username | `resend` |
+| Password | the Resend API key |
+
+**Receiving is a separate system from sending.** Cloudflare Email Routing (or
+your DNS provider's equivalent) forwards mail addressed to `support@` to a real
+inbox. It CANNOT send, so it can never deliver these codes — setting it up
+expecting it to fix the sender is a well-worn dead end. Both are needed:
+Resend to send, routing to receive.
+
+**An address printed on the page must actually receive mail.** A bouncing
+`support@` is worse than none: the customer believes they have been in touch
+and waits for an answer that will never come.
+
+### Gmail as the SMTP provider — development only
 
 Gmail rejects your normal account password here. It needs an *App Password*,
 which only exists once 2-Step Verification is enabled.

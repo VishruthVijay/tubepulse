@@ -18,6 +18,7 @@ import { PulseField } from "@/components/landing/pulse-field";
 import { SiteNav } from "@/components/landing/site-nav";
 import { TiltCard } from "@/components/landing/tilt-card";
 import { PLANS, spellOutCapitalised } from "@/lib/billing/plans";
+import { SUPPORT_EMAIL } from "@/lib/support";
 
 /**
  * The landing page.
@@ -531,6 +532,16 @@ export function Landing({ signedIn = false }: { signedIn?: boolean }) {
             >
               Sign in
             </Link>
+            {/* A real address, not a form. Someone deciding whether to trust a
+                paid tool looks for a way to reach a human before they look for
+                features, and a contact form answers a question they have not
+                asked yet. `SUPPORT_EMAIL` is the single definition. */}
+            <a
+              href={`mailto:${SUPPORT_EMAIL}`}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {SUPPORT_EMAIL}
+            </a>
           </nav>
           <p className="text-muted-foreground text-xs">
             For creators researching a niche they do not yet dominate.
