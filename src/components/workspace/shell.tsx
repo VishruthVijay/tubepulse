@@ -29,10 +29,13 @@ import { useSidebarCollapsed } from "./use-sidebar";
 export function WorkspaceShell({
   email,
   eyebrow,
+  planCard,
   children,
 }: {
   email: string;
   eyebrow: string;
+  /** Server-rendered plan/usage card for the sidebar. See Sidebar's prop. */
+  planCard?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const [navOpen, setNavOpen] = useState(false);
@@ -50,7 +53,7 @@ export function WorkspaceShell({
           collapsed ? "w-0" : "w-64",
         )}
       >
-        <Sidebar />
+        <Sidebar planCard={planCard} />
       </div>
 
       {navOpen && (
@@ -61,7 +64,7 @@ export function WorkspaceShell({
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
           />
           <div className="animate-rise absolute inset-y-0 left-0">
-            <Sidebar onNavigate={() => setNavOpen(false)} />
+            <Sidebar onNavigate={() => setNavOpen(false)} planCard={planCard} />
           </div>
         </div>
       )}

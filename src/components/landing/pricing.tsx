@@ -106,6 +106,7 @@ export function Pricing({
   canCheckout = false,
   canYearly = false,
   initialCycle = "monthly",
+  initialPlan = null,
 }: {
   signedIn?: boolean;
   /** The tier they are already on, so its card says so instead of selling it. */
@@ -116,6 +117,12 @@ export function Pricing({
   canYearly?: boolean;
   /** Preselected cycle, from ?cycle= after a signed-out Go Pro round trip. */
   initialCycle?: BillingCycle;
+  /**
+   * The tier they pressed before being sent to sign in, from ?plan=.
+   * Its card is scrolled to and outlined on return, so the round trip ends on
+   * the price they actually chose rather than at the top of the page.
+   */
+  initialPlan?: PaidPlanKey | null;
 }) {
   return (
     <div className="tp-landing tp-no-js bg-background text-foreground relative">
@@ -164,6 +171,7 @@ export function Pricing({
           canCheckout={canCheckout}
           canYearly={canYearly}
           initialCycle={initialCycle}
+          initialPlan={initialPlan}
         />
 
         <p

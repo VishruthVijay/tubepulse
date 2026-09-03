@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus } from "lucide-react";
+import { LifeBuoy, Plus } from "lucide-react";
 import { LogoLockup } from "@/components/brand/logo";
 import { NAV_ITEMS } from "@/lib/nav";
+import { SUPPORT_EMAIL } from "@/lib/support";
 import { cn } from "@/lib/utils";
 
 /**
@@ -18,7 +19,23 @@ import { cn } from "@/lib/utils";
  * greyed-out item you can still see is honest; hiding it makes the product look
  * smaller than it is about to be.
  */
-export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+export function Sidebar({
+  onNavigate,
+  planCard,
+}: {
+  onNavigate?: () => void;
+  /**
+   * The plan-and-usage card, rendered by the layout as a SERVER component and
+   * passed through as a slot.
+   *
+   * It arrives already-rendered rather than as data because this component is
+   * `"use client"` (it needs usePathname for the active rail) while the card's
+   * numbers come from a database read under RLS. Passing the element keeps that
+   * read on the server; passing the data would drag the quota into the client
+   * bundle and put the allowance behind a fetch on every page.
+   */
+  planCard?: React.ReactNode;
+}) {
   const pathname = usePathname();
 
   return (
@@ -72,6 +89,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </ul>
 
+      {planCard}
+
       <Link
         href="/projects/new"
         onClick={onNavigate}
@@ -80,6 +99,18 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         <Plus className="size-4" aria-hidden />
         New project
       </Link>
+
+      {/* Paying customers are the ones who most need a way to reach a human,
+          and hunting for it on the marketing site is the wrong errand at the
+          wrong moment. Quiet by default; it is a reassurance, not a call to
+          action. */}
+      <a
+        href={`mailto:${SUPPORT_EMAIL}`}
+        className="text-muted-foreground/70 hover:text-foreground flex items-center justify-center gap-2 px-3 pb-1 text-xs transition-colors"
+      >
+        <LifeBuoy className="size-3.5 shrink-0" aria-hidden />
+        <span className="truncate">{SUPPORT_EMAIL}</span>
+      </a>
     </nav>
   );
 }

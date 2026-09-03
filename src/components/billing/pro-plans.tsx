@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Minus } from "lucide-react";
 import { MagneticButton } from "@/components/landing/magnetic-button";
 import { TiltCard } from "@/components/landing/tilt-card";
@@ -116,6 +116,7 @@ export function ProPlans({
   canCheckout,
   canYearly,
   initialCycle = "monthly",
+  initialPlan = null,
 }: {
   signedIn: boolean;
   /** The tier they are already on, so its card says so instead of selling it. */
@@ -126,11 +127,42 @@ export function ProPlans({
   canYearly: boolean;
   /** Preselected cycle, from ?cycle= after a signed-out click. */
   initialCycle?: BillingCycle;
+  /** The tier pressed before signing in, from ?plan=. Scrolled to on return. */
+  initialPlan?: PaidPlanKey | null;
 }) {
   const [cycle, setCycle] = useState<BillingCycle>(initialCycle);
   const [promo, setPromo] = useState<AppliedPromo | null>(null);
   const [promoFor, setPromoFor] = useState<PaidPlanKey | null>(null);
   const { busy, start } = useUpgrade();
+
+  /**
+   * Returning from sign-in, land on the card they actually pressed.
+   *
+   * The tier rode through the login round trip in `next`, and without this it
+   * arrives and does nothing: the visitor is returned to the top of a
+   * four-card page and has to find their price again, which is exactly the
+   * moment the old flow lost people.
+   *
+   * Scroll only — it does NOT auto-open Razorpay. A payment window that opens
+   * by itself because of a URL parameter is a payment nobody pressed for.
+   *
+   * `smooth` is skipped when the visitor asked for less motion, and the whole
+   * effect is a no-op when the card is not on the page (an unknown tier, or a
+   * tier they already own).
+   */
+  const highlightRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!initialPlan) return;
+    const node = highlightRef.current;
+    if (!node) return;
+
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    node.scrollIntoView({
+      behavior: reduced ? "auto" : "smooth",
+      block: "center",
+    });
+  }, [initialPlan]);
 
   /**
    * A code is priced against ONE tier on ONE cycle. Changing either invalidates
@@ -251,13 +283,24 @@ export function ProPlans({
           const applied = promoFor === key ? promo : null;
           const finalCents = applied ? applied.finalCents : price.priceCents;
 
+          const chosen = initialPlan === key;
+
           return (
-            <div key={key} data-reveal="up" data-stagger className="group/tilt h-full">
+            <div
+              key={key}
+              ref={chosen ? highlightRef : undefined}
+              data-reveal="up"
+              data-stagger
+              className="group/tilt h-full scroll-mt-24"
+            >
               <TiltCard
                 intensity={6}
                 className={cn(
                   "flex h-full flex-col p-7",
                   featured && "ring-[var(--brand-2)]/30 ring-2",
+                  // The card they came back for wins over the "best value"
+                  // ring, so the page cannot point at two cards at once.
+                  chosen && "ring-[var(--brand-2)] ring-2",
                 )}
               >
                 {featured && <div className="rule-brand absolute inset-x-0 top-0" aria-hidden />}

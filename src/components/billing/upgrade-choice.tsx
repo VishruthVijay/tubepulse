@@ -4,11 +4,11 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  PAID_PLAN_KEYS,
   PLANS,
   PLAN_PRICES,
   formatUsd,
   perMonthUsd,
+  plansAbove,
   yearlySavingPercent,
   yearlySavingUsd,
   type BillingCycle,
@@ -39,9 +39,26 @@ export function UpgradeChoice({
   /** The tier they are on, so it is not offered back to them. */
   currentPlan?: PaidPlanKey | null;
 }) {
-  // Default to the tier most people should be on rather than the cheapest —
-  // the same recommendation the pricing page makes.
-  const [plan, setPlan] = useState<PaidPlanKey>("studio");
+  /**
+   * ONLY the tiers above the one they already pay for.
+   *
+   * Someone on Creator sees Studio and Max; someone on Max sees nothing and
+   * this component renders nothing at all. Showing the current tier as a
+   * disabled card was the old behaviour and it was worse than useless: it
+   * spent a third of the panel advertising something they had already bought.
+   *
+   * The reason it must be a FILTER rather than a disabled state is that
+   * Razorpay would happily create a SECOND mandate on the same card for the
+   * same tier — two charges a month, and the customer finds out before we do.
+   */
+  const offered = plansAbove(currentPlan);
+
+  // Default to the recommended tier when it is actually on offer, otherwise
+  // the cheapest upgrade available — never a tier that is not rendered, which
+  // would leave the pay button buying something invisible.
+  const [plan, setPlan] = useState<PaidPlanKey>(
+    () => offered.find((key) => key === "studio") ?? offered[0] ?? "studio",
+  );
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const [promo, setPromo] = useState<AppliedPromo | null>(null);
   const { busy, start } = useUpgrade();
@@ -63,17 +80,30 @@ export function UpgradeChoice({
     setPromo(null);
   }
 
+  // Already on the top tier: there is nothing to sell, so the panel removes
+  // itself rather than showing a heading above an empty grid. The billing page
+  // decides what to say in its place.
+  if (offered.length === 0) return null;
+
   return (
     <div className="space-y-4">
       <p className="text-muted-foreground text-[0.68rem] tracking-[0.18em] uppercase">
-        Choose a plan
+        {currentPlan ? "Upgrade your plan" : "Choose a plan"}
       </p>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        {PAID_PLAN_KEYS.map((key) => {
+      <div
+        className={cn(
+          "grid gap-3",
+          offered.length >= 3
+            ? "sm:grid-cols-3"
+            : offered.length === 2
+              ? "sm:grid-cols-2"
+              : "sm:grid-cols-1",
+        )}
+      >
+        {offered.map((key) => {
           const option = PLANS[key];
           const selected = plan === key;
-          const isCurrent = currentPlan === key;
 
           return (
             <button
@@ -81,7 +111,6 @@ export function UpgradeChoice({
               type="button"
               onClick={() => changePlan(key)}
               aria-pressed={selected}
-              disabled={isCurrent}
               className={cn(
                 "rounded-xl border p-4 text-left transition-colors",
                 "focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none",
@@ -93,9 +122,6 @@ export function UpgradeChoice({
             >
               <span className="flex items-baseline justify-between gap-2">
                 <span className="text-sm font-medium">{option.name}</span>
-                {isCurrent && (
-                  <span className="text-muted-foreground text-xs">current</span>
-                )}
               </span>
 
               <span className="mt-2 block text-xl font-semibold tabular-nums">
@@ -191,10 +217,43 @@ export function UpgradeChoice({
         </div>
       )}
 
+      {/*
+        SWITCHING TIER IS NOT AN EDIT — it is a new mandate.
+
+        Razorpay hard-codes the amount into the plan object, so moving from
+        Creator to Studio cannot change the existing mandate's price. The old
+        mandate has to stop and a new one start. Saying so here, before the
+        button, is the difference between an informed switch and a customer
+        discovering on their statement that two things happened.
+
+        The checkout route refuses outright while a subscription is active, so
+        without this notice the button would simply return an error the
+        customer could do nothing about.
+      */}
+      {currentPlan && (
+        <div className="border-border/60 bg-muted/30 space-y-2 rounded-lg border px-3 py-3">
+          <p className="text-xs leading-relaxed">
+            <strong>Moving from {PLANS[currentPlan].name} to {PLANS[plan].name}.</strong>{" "}
+            Your {PLANS[currentPlan].name} mandate has to be cancelled before the
+            new one can start — Razorpay fixes the amount to the plan, so it
+            cannot simply be changed.
+          </p>
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            You keep {PLANS[currentPlan].name} until the period you have already
+            paid for runs out. Nothing is charged twice, and the new plan is set
+            up in the same window.
+          </p>
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            Cancel {PLANS[currentPlan].name} on the button below this panel
+            first, then come back and start {PLANS[plan].name}.
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-4">
         <Button
           type="button"
-          disabled={busy}
+          disabled={busy || Boolean(currentPlan)}
           onClick={() => start({ plan, cycle, promoCode: promo?.code })}
         >
           {busy && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />}

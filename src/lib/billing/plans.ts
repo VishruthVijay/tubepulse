@@ -309,6 +309,32 @@ export function toPaidPlanKey(value: string): PaidPlanKey | null {
 }
 
 /**
+ * The paid tiers STRICTLY ABOVE the one given, in ladder order.
+ *
+ * The single answer to "what can this person upgrade to?", so the workspace
+ * upgrade panel and the sidebar's upgrade prompt cannot disagree about it.
+ * Someone on Studio is offered Max and nothing else; someone on Max is offered
+ * nothing and the panel hides itself rather than rendering an empty grid.
+ *
+ * Ladder position comes from PAID_PLAN_KEYS, not from price, because the array
+ * is already the declared order and comparing dollars would silently reorder
+ * the ladder the day two tiers are priced the same.
+ *
+ * A null plan means free (or an unknown row), which can reach every paid tier.
+ * DOWNGRADES ARE NOT AN UPGRADE PATH: offering a cheaper tier here would create
+ * a second mandate at a lower price rather than moving the existing one, so the
+ * billing page sends those to cancel-then-resubscribe instead.
+ */
+export function plansAbove(current: PaidPlanKey | null): PaidPlanKey[] {
+  if (current === null) return [...PAID_PLAN_KEYS];
+  const index = PAID_PLAN_KEYS.indexOf(current);
+  // An unrecognised tier is treated as the bottom of the ladder rather than
+  // the top: showing every upgrade beats silently offering none.
+  if (index === -1) return [...PAID_PLAN_KEYS];
+  return PAID_PLAN_KEYS.slice(index + 1);
+}
+
+/**
  * The two ways to pay for any paid tier.
  *
  * Same product, same allowance, same features — only the billing period and

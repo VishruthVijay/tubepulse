@@ -67,7 +67,9 @@ try {
 
 const problems = [];
 
-for (const rawLine of source.split("\n")) {
+// Split on \r?\n, not \n — a CRLF file otherwise leaves a trailing \r on
+// every value, which reads as a non-empty placeholder.
+for (const rawLine of source.split(/\r?\n/)) {
   const match = /^([A-Z][A-Z0-9_]*)=(.*)$/.exec(rawLine);
   if (!match) continue;
 

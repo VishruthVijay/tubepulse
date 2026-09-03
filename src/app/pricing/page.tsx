@@ -3,7 +3,7 @@ import { LiquidCursor } from "@/components/landing/liquid-cursor";
 import { Pricing } from "@/components/landing/pricing";
 import { ScrollChoreography } from "@/components/landing/scroll-choreography";
 import { SmoothScroll } from "@/components/landing/smooth-scroll";
-import { toBillingCycle } from "@/lib/billing/plans";
+import { toBillingCycle, toPaidPlanKey } from "@/lib/billing/plans";
 import { getBillingState } from "@/lib/billing/store";
 import { isBillingConfigured, isYearlyConfigured } from "@/lib/env";
 import { isCheckoutConfigured, isSupabaseConfigured } from "@/lib/public-env";
@@ -32,11 +32,11 @@ export const dynamic = "force-dynamic";
 export default async function PricingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cycle?: string }>;
+  searchParams: Promise<{ cycle?: string; plan?: string }>;
 }) {
   // Set when someone clicked Go Pro while signed out: they are returned to the
   // card they actually chose, at the price they actually saw.
-  const { cycle } = await searchParams;
+  const { cycle, plan } = await searchParams;
   const user = isSupabaseConfigured ? await getUser() : null;
   const billing = user ? await getBillingState() : null;
 
@@ -57,6 +57,9 @@ export default async function PricingPage({
         // switch at all.
         canYearly={isYearlyConfigured()}
         initialCycle={toBillingCycle(cycle ?? "monthly") ?? "monthly"}
+        // The tier they pressed before signing in. Narrowed rather than
+        // trusted: this arrives from a URL a stranger can edit.
+        initialPlan={toPaidPlanKey(plan ?? "")}
       />
     </>
   );

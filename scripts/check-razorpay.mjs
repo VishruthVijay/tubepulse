@@ -112,18 +112,54 @@ async function main() {
 
   // ----------------------------------------------------------- plan state
   const planCount = Array.isArray(body?.items) ? body.items.length : 0;
-  const configuredMonthly = env.RAZORPAY_PLAN_ID_PRO ?? "";
-  const configuredYearly = env.RAZORPAY_PLAN_ID_PRO_YEARLY ?? "";
+
+  /*
+   * THE SIX CURRENT VARIABLES, not the retired RAZORPAY_PLAN_ID_PRO.
+   *
+   * This check used to report on the old two-tier `_PRO` pair, which the app
+   * stopped reading at the four-tier rebuild. That made it actively
+   * misleading: it printed "not set" while the six ids the app DOES read were
+   * present and working, and it would have said nothing when they were absent.
+   *
+   * The three MONTHLY ids are what gate the upgrade UI. The yearly trio is
+   * optional by design — blank hides the annual toggle and nothing else.
+   */
+  const MONTHLY_VARS = [
+    "RAZORPAY_PLAN_ID_CREATOR_MONTHLY",
+    "RAZORPAY_PLAN_ID_STUDIO_MONTHLY",
+    "RAZORPAY_PLAN_ID_AGENCY_MONTHLY",
+  ];
+  const YEARLY_VARS = [
+    "RAZORPAY_PLAN_ID_CREATOR_YEARLY",
+    "RAZORPAY_PLAN_ID_STUDIO_YEARLY",
+    "RAZORPAY_PLAN_ID_AGENCY_YEARLY",
+  ];
+
+  const missingMonthly = MONTHLY_VARS.filter((name) => (env[name] ?? "") === "");
+  const setYearly = YEARLY_VARS.filter((name) => (env[name] ?? "") !== "");
+  // Kept for the "next step" advice below, which keys off the monthly trio.
+  const configuredMonthly = missingMonthly.length === 0 ? "set" : "";
 
   console.log(
     `  Plans in this mode   ${planCount === 0 ? "none yet" : `at least ${planCount}`}`,
   );
   console.log(
-    `  RAZORPAY_PLAN_ID_PRO ${configuredMonthly === "" ? "✗ not set" : "✓ set"}`,
+    `  Monthly plan ids     ${
+      missingMonthly.length === 0
+        ? "✓ all three set"
+        : `✗ missing ${missingMonthly.length}/3 — upgrade UI is HIDDEN`
+    }`,
   );
+  for (const name of missingMonthly) {
+    console.log(`                         ${name}`);
+  }
   console.log(
-    `  ..._PRO_YEARLY       ${
-      configuredYearly === "" ? "not set (yearly toggle hidden)" : "✓ set"
+    `  Yearly plan ids      ${
+      setYearly.length === 3
+        ? "✓ all three set"
+        : setYearly.length === 0
+          ? "not set (yearly toggle hidden — this is fine)"
+          : `⚠  only ${setYearly.length}/3 — toggle stays hidden until all three`
     }`,
   );
   console.log(
@@ -177,7 +213,9 @@ function readEnvLocal() {
   }
 
   const values = {};
-  for (const line of source.split("\n")) {
+  // Split on \r?\n, not \n. A CRLF file otherwise leaves a trailing \r on
+  // every value, and this script would report a correctly-set key as missing.
+  for (const line of source.split(/\r?\n/)) {
     // Commented-out parked keys must not be read as active config.
     if (line.trimStart().startsWith("#")) continue;
     const match = /^\s*([A-Z][A-Z0-9_]*)\s*=\s*(.*)$/.exec(line);

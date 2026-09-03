@@ -123,7 +123,20 @@ export default async function BillingPage() {
 
         </div>
 
-        {state.canSubscribe && ready && (
+        {/*
+          Shown to PAYING customers too, not just free ones.
+
+          It used to be gated on `state.canSubscribe`, which is false the moment
+          someone is actively paying — so the upgrade panel was hidden from
+          precisely the people most likely to move up a tier. A customer on
+          Creator had no way to reach Studio from inside the app at all.
+
+          For a subscriber the panel lists only the tiers ABOVE theirs and
+          explains that switching means cancelling the current mandate first;
+          its pay button stays disabled until they do, because the checkout
+          route refuses a second subscription while one is active.
+        */}
+        {ready && (
           <div className="border-border/60 mt-6 border-t pt-6">
             <UpgradeChoice canYearly={canYearly} currentPlan={state.subscribedTier} />
           </div>
