@@ -13,6 +13,7 @@ import {
   INTENT_SYSTEM_PROMPT,
   type Candidate,
   type Intent,
+  repairIntent,
 } from "./intent";
 
 /**
@@ -74,8 +75,9 @@ export async function readIntent(request: string): Promise<Intent> {
     };
   }
 
-  return parsed.data;
+  return repairIntent(parsed.data, request);
 }
+
 
 export interface DiscoveryResult {
   candidates: Candidate[];

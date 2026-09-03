@@ -154,6 +154,48 @@ export function cleanHandle(raw: string): string {
 }
 
 /**
+ * A request that is unambiguously one account, needing no model at all.
+ *
+ * "@mkbhd" and "youtube.com/@mkbhd" name exactly one thing. Sending them to an
+ * LLM buys nothing and costs the one thing this endpoint cannot afford: it was
+ * observed classifying a bare "@MKBHD" as a NICHE, which turns "research this
+ * account" into "which platform?" followed by a discovery call that rediscovers
+ * the handle the person already typed.
+ *
+ * Deterministic, so it cannot regress on a model's mood. Returns null whenever
+ * the request is anything more than a lone handle or URL — one word of context
+ * ("channels like @mkbhd") is a real request for discovery, and belongs to the
+ * model.
+ */
+export function obviousChannel(
+  request: string,
+): { channel: string; platform: "youtube" | "instagram" | null } | null {
+  const said = request.trim();
+
+  // One token only. "@mkbhd and @veritasium" is two accounts, and "like @mkbhd"
+  // is a discovery request — both are the model's job, not this one.
+  if (said === "" || /\s/.test(said)) return null;
+
+  const instagram = /instagram\.com/i.test(said);
+  const youtube = /youtube\.com|youtu\.be/i.test(said);
+  const isUrl = /^(https?:\/\/)?(www\.)?[a-z0-9-]+\.[a-z]{2,}\//i.test(said);
+
+  // A URL on a platform we do not scrape is not an obvious channel.
+  if (isUrl && !instagram && !youtube) return null;
+
+  // A bare handle must actually look like one: @ then handle characters.
+  if (!isUrl && !/^@[A-Za-z0-9._-]+$/.test(said)) return null;
+
+  const channel = cleanHandle(said);
+  if (channel === "") return null;
+
+  return {
+    channel,
+    platform: instagram ? "instagram" : youtube ? "youtube" : null,
+  };
+}
+
+/**
  * Whether this intent can proceed without asking anything.
  *
  * Pure and exported so the route and its tests agree about the rule, rather
@@ -163,4 +205,42 @@ export function needsClarification(intent: Intent): boolean {
   if (intent.kind === "unclear") return true;
   if (intent.confidence < CLARIFY_BELOW) return true;
   return intent.question !== null;
+}
+
+/**
+ * Fix an intent that names a KIND but carries no value for it.
+ *
+ * `json_object` mode constrains the syntax and nothing else, so the model can
+ * answer {"kind":"niche","niche":null} — which satisfies the schema, because
+ * both fields are legitimately nullable, and is still self-contradictory. The
+ * route then finds no channel and no niche and asks "What would you like
+ * researched?" at somebody who just said exactly what they wanted.
+ *
+ * Observed in testing on a plainly-worded request naming a real channel. It is
+ * intermittent, which is worse than reproducible — it makes the voice button
+ * look unreliable rather than broken.
+ *
+ * The repair is to fall back to the words the person actually said: they are a
+ * better niche than null, and discovery can work with them. An empty request
+ * genuinely has nothing to work with and degrades to "unclear", which is the
+ * honest answer.
+ */
+export function repairIntent(intent: Intent, request: string): Intent {
+  const said = request.trim();
+
+  if (intent.kind === "channel" && !intent.channel) {
+    // A channel with no name is not a channel. Treat what they said as a
+    // subject rather than inventing a handle, and let discovery do its job.
+    return said === ""
+      ? { ...intent, kind: "unclear" }
+      : { ...intent, kind: "niche", niche: said.slice(0, 200) };
+  }
+
+  if (intent.kind === "niche" && !intent.niche) {
+    return said === ""
+      ? { ...intent, kind: "unclear" }
+      : { ...intent, niche: said.slice(0, 200) };
+  }
+
+  return intent;
 }

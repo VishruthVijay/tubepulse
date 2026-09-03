@@ -4,7 +4,9 @@ import { PLANS } from "@/lib/billing/plans";
 import { canUseVoice } from "@/lib/billing/quota";
 import { getQuota } from "@/lib/billing/store";
 import { discoverChannels, readIntent } from "@/lib/agent/discover";
-import { cleanHandle, needsClarification } from "@/lib/agent/intent";
+import { cleanHandle, needsClarification,
+  obviousChannel,
+} from "@/lib/agent/intent";
 import { createServerClient } from "@/lib/supabase/server";
 
 /**
@@ -66,6 +68,22 @@ export async function POST(request: Request) {
   }
 
   const trail: { step: string; detail: string }[] = [];
+
+  // A lone handle or channel URL names exactly one account. Answer it here
+  // rather than paying for a model call that can only agree — or, as observed,
+  // occasionally disagree and send "@MKBHD" off to niche discovery.
+  const obvious = obviousChannel(body.data.request);
+
+  if (obvious) {
+    return NextResponse.json({
+      kind: "channel",
+      channel: obvious.channel,
+      // An explicit answer to a previous question still wins, then the
+      // platform the URL itself names, then the default.
+      platform: body.data.platform ?? obvious.platform ?? "youtube",
+      trail: [{ step: "understand", detail: `Heard a channel: ${obvious.channel}` }],
+    });
+  }
 
   let intent;
   try {
