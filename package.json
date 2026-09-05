@@ -2,7 +2,6 @@
   "name": "tubepulse",
   "version": "0.1.0",
   "private": false,
-  "license": "MIT",
   "author": "Vishruth Vijay",
   "description": "TubePulse — evidence-backed YouTube competitor research: real video performance, outliers scored against a channel's own median, and video ideas with their receipts attached.",
   "scripts": {

@@ -8,7 +8,7 @@ Every number is measured, not guessed: an outlier is a video that beat *its own
 channel's* median, and every idea links the videos it came from so you can argue
 with it instead of trusting it.
 
-MIT licensed. Built by Vishruth Vijay.
+Built by Vishruth Vijay.
 
 ---
 
@@ -114,6 +114,4 @@ The rule the whole setup rests on: **if a mistake can only be caught by a human
 reading code, it will eventually ship.** So every rule that matters is a check
 that runs in a terminal.
 
-## Licence
-
-[MIT](LICENSE) © 2026 Vishruth Vijay
+© 2026 Vishruth Vijay. All rights reserved.
