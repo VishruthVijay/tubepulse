@@ -2,6 +2,7 @@ import "server-only";
 import { ApifyClient } from "apify-client";
 import { serverEnv } from "@/lib/env";
 import { webhooksCanReachUs } from "@/lib/apify/reachable";
+import { payloadTemplate } from "@/lib/apify/payload-template";
 
 /**
  * Apify, used asynchronously.
@@ -59,15 +60,7 @@ export async function startChannelScrape({
                 "ACTOR.RUN.ABORTED",
               ],
               requestUrl: `${env.APP_URL}/api/webhooks/apify`,
-              // Apify substitutes the resource fields; jobId and secret are ours.
-              payloadTemplate: JSON.stringify({
-                jobId,
-                secret: env.APIFY_WEBHOOK_SECRET,
-                eventType: "{{eventType}}",
-                runId: "{{resource.id}}",
-                defaultDatasetId: "{{resource.defaultDatasetId}}",
-                status: "{{resource.status}}",
-              }),
+              payloadTemplate: payloadTemplate(jobId, env.APIFY_WEBHOOK_SECRET),
             },
           ],
         }
@@ -119,14 +112,7 @@ export async function startInstagramScrape({
                 "ACTOR.RUN.ABORTED",
               ],
               requestUrl: `${env.APP_URL}/api/webhooks/apify`,
-              payloadTemplate: JSON.stringify({
-                jobId,
-                secret: env.APIFY_WEBHOOK_SECRET,
-                eventType: "{{eventType}}",
-                runId: "{{resource.id}}",
-                defaultDatasetId: "{{resource.defaultDatasetId}}",
-                status: "{{resource.status}}",
-              }),
+              payloadTemplate: payloadTemplate(jobId, env.APIFY_WEBHOOK_SECRET),
             },
           ],
         }
@@ -190,14 +176,7 @@ export async function startTranscriptRun({
                 "ACTOR.RUN.ABORTED",
               ],
               requestUrl: `${env.APP_URL}/api/webhooks/apify`,
-              payloadTemplate: JSON.stringify({
-                jobId,
-                secret: env.APIFY_WEBHOOK_SECRET,
-                eventType: "{{eventType}}",
-                runId: "{{resource.id}}",
-                defaultDatasetId: "{{resource.defaultDatasetId}}",
-                status: "{{resource.status}}",
-              }),
+              payloadTemplate: payloadTemplate(jobId, env.APIFY_WEBHOOK_SECRET),
             },
           ],
         }
