@@ -19,6 +19,8 @@ import {
   type Plan,
 } from "@/lib/billing/plans";
 import { cn } from "@/lib/utils";
+import { paypalHref } from "@/lib/billing/paypal-link";
+import { isPaypalFallbackConfigured, publicEnv } from "@/lib/public-env";
 import { PromoDisclosure } from "./promo-disclosure";
 import { PromoField, type AppliedPromo } from "./promo-field";
 import { useUpgrade } from "./use-upgrade";
@@ -57,6 +59,15 @@ const SIGNUP_HREF = "/login?mode=signup&next=/pricing";
  */
 function planSignInHref(planKey: PaidPlanKey, cycle: BillingCycle): string {
   return `/login?next=${encodeURIComponent(`/pricing?plan=${planKey}&cycle=${cycle}`)}`;
+}
+
+/**
+ * Where "Pay with PayPal" goes. The link-building itself lives in
+ * `@/lib/billing/paypal-link` so the amount logic can be unit tested — see the
+ * reasoning at the top of that file.
+ */
+function paypalHrefFor(planName: string, cents: number, cycle: BillingCycle): string {
+  return paypalHref(publicEnv.paypalLink, planName, cents, cycle);
 }
 
 /**
@@ -134,6 +145,10 @@ export function ProPlans({
   const [promo, setPromo] = useState<AppliedPromo | null>(null);
   const [promoFor, setPromoFor] = useState<PaidPlanKey | null>(null);
   const { busy, start } = useUpgrade();
+
+  // Only ever consulted once `canCheckout` is false, so the normal Razorpay
+  // path always wins when it is available.
+  const paypalFallback = isPaypalFallbackConfigured;
 
   /**
    * Returning from sign-in, land on the card they actually pressed.
@@ -398,6 +413,28 @@ export function ProPlans({
                     >
                       {busy ? "Opening…" : `Choose ${plan.name}`}
                     </MagneticButton>
+                  ) : signedIn && !canCheckout && !isCurrent && paypalFallback ? (
+                    /**
+                     * The dead end this replaces: a signed-in customer whose
+                     * card Razorpay cannot charge yet pressed this button and
+                     * was sent to /billing, which has nothing for them to pay
+                     * with. While International Payments is pending, that is
+                     * every overseas customer.
+                     *
+                     * PayPal cannot carry the SUBSCRIPTION — a wallet holds no
+                     * recurring mandate — so this is openly a manual step, and
+                     * the label and the note under it say so. Better a slow
+                     * honest path than a fast imaginary one.
+                     */
+                    <MagneticButton
+                      href={paypalHrefFor(plan.name, finalCents, cycle)}
+                      variant={featured ? "solid" : "glass"}
+                      className="w-full"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Pay with PayPal
+                    </MagneticButton>
                   ) : (
                     <MagneticButton
                       href={signedIn ? "/billing" : planSignInHref(key, cycle)}
@@ -406,6 +443,15 @@ export function ProPlans({
                     >
                       {signedIn ? "Manage plan" : `Choose ${plan.name}`}
                     </MagneticButton>
+                  )}
+
+                  {signedIn && !canCheckout && !isCurrent && paypalFallback && (
+                    <p className="text-muted-foreground/70 mt-3 text-center text-xs leading-relaxed">
+                      Card payments from your country aren&rsquo;t switched on
+                      yet. Pay by PayPal and we&rsquo;ll open your plan by hand,
+                      usually within a day &mdash; it won&rsquo;t auto-renew, so
+                      nothing charges you twice.
+                    </p>
                   )}
 
                   {live && (

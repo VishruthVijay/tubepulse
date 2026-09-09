@@ -178,9 +178,16 @@ export function Pricing({
           className="text-muted-foreground/70 mx-auto mt-10 max-w-xl text-center text-xs leading-relaxed"
           data-reveal="up"
         >
+          {/*
+            METHODS, ACCURATELY. This used to promise "netbanking and wallets",
+            which one-time Razorpay payments accept but SUBSCRIPTIONS do not —
+            recurring mandates are cards, UPI Autopay and eMandate only. A
+            wallet cannot hold a mandate at all, which is the same reason
+            PayPal can never be the subscription path here.
+          */}
           Charged automatically by Razorpay until you stop it. UPI Autopay,
-          cards, netbanking and wallets. Card details are entered in
-          Razorpay&rsquo;s own window and never reach us.
+          cards and eMandate. Card details are entered in Razorpay&rsquo;s own
+          window and never reach us.
         </p>
       </section>
 

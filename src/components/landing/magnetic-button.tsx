@@ -31,6 +31,8 @@ export function MagneticButton({
   children,
   variant = "solid",
   className,
+  target,
+  rel,
 }: {
   href?: string;
   onClick?: () => void;
@@ -38,6 +40,15 @@ export function MagneticButton({
   children: React.ReactNode;
   variant?: "solid" | "glass";
   className?: string;
+  /**
+   * For links that leave the app — the PayPal fallback is the reason this
+   * exists. Ignored without an `href`, since a <button> has no target.
+   *
+   * Pair `target="_blank"` with `rel="noopener noreferrer"`: without it the
+   * opened page gets a handle on this one through `window.opener`.
+   */
+  target?: string;
+  rel?: string;
 }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
@@ -116,7 +127,7 @@ export function MagneticButton({
       className="inline-block transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform"
     >
       {href ? (
-        <Link href={href} data-cursor-grow className={surface}>
+        <Link href={href} target={target} rel={rel} data-cursor-grow className={surface}>
           {inner}
         </Link>
       ) : (
