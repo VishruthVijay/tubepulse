@@ -254,7 +254,10 @@ export function billingConfigProblem(): string | null {
 
   return missing.length === 0
     ? null
-    : `Missing from .env.local: ${missing.join(", ")}.`;
+    // Deliberately does NOT name .env.local: this string is rendered on the
+    // billing page in production too, where that file does not exist and the
+    // values live in Vercel. Names only, never values.
+    : `Not set: ${missing.join(", ")}.`;
 }
 
 /** True when billing is fully configured. Never throws. */

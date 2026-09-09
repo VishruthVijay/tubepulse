@@ -11,7 +11,12 @@ import {
 } from "@/lib/billing/plans";
 import { formatDate } from "@/lib/billing/status";
 import { getBillingState, getCreditHistory } from "@/lib/billing/store";
-import { isBillingConfigured, isYearlyConfigured, razorpayMode } from "@/lib/env";
+import {
+  billingConfigProblem,
+  isBillingConfigured,
+  isYearlyConfigured,
+  razorpayMode,
+} from "@/lib/env";
 import { isCheckoutConfigured } from "@/lib/public-env";
 
 export const metadata = { title: "Billing — TubePulse" };
@@ -40,6 +45,9 @@ export default async function BillingPage() {
   ]);
 
   const ready = isBillingConfigured() && isCheckoutConfigured;
+  // The exact missing variable names, so the banner below can say which rather
+  // than blaming "keys" when the keys are fine. Null once billing is ready.
+  const configProblem = billingConfigProblem();
   const canYearly = isYearlyConfigured();
   // Shown on screen when true. Someone testing needs to know at a glance that
   // no real money is moving; discovering it later, from a missing payout, is
@@ -81,9 +89,28 @@ export default async function BillingPage() {
           <span className="flex items-start gap-3">
             <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
             <span>
-              Razorpay keys are not set on this machine, so upgrading is switched
-              off. Nothing is broken — see <code>docs/billing-setup.md</code> for
-              the four values that go in <code>.env.local</code>.
+              {/*
+                SAY WHICH VALUES, rather than guessing at the cause.
+
+                This used to read "Razorpay keys are not set on this machine",
+                which was actively misleading in the most common case: the keys
+                ARE set and it is the three monthly PLAN IDs that are missing,
+                because those cannot be created until Razorpay approves
+                International Payments for USD. It also said "four values" when
+                six are required, and sent people to re-check credentials that
+                were already correct.
+
+                `billingConfigProblem()` already computes the exact missing
+                names for `isBillingConfigured()`, so naming them here costs
+                nothing and cannot drift out of step with the real check.
+                Names only — never values.
+              */}
+              Upgrading is switched off because billing is not fully configured.
+              Nothing is broken.{" "}
+              {configProblem && <code>{configProblem}</code>}{" "}
+              See <code>docs/billing-setup.md</code>. Plan ids can only be
+              created once Razorpay has approved international payments, so
+              blanks are expected until then.
             </span>
           </span>
         </EmptyState>

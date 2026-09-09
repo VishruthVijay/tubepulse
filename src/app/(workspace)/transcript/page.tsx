@@ -26,11 +26,18 @@ export default async function TranscriptPage() {
         title="Extract transcript"
         description="Pull the spoken-word transcript from any public video."
       >
+        {/*
+          NAME THE VALUE, and do not name the wrong FILE. `blockedBy` said "in
+          .env.local", which is right on a dev machine and wrong everywhere
+          else — in production the variable lives in Vercel and there is no such
+          file. It also never said WHAT to set it to, so the only source for the
+          actor id was a comment inside client.ts.
+        */}
         <ComingSoon
           icon={FileText}
           heading="Transcripts are not switched on"
           what="Pastes one public YouTube video URL and pulls its spoken-word transcript, using auto-generated captions where the creator has not supplied their own — then summarises it in a few lines."
-          blockedBy="Set APIFY_TRANSCRIPT_ACTOR in .env.local to switch this on."
+          blockedBy="Set APIFY_TRANSCRIPT_ACTOR to supreme_coder/youtube-transcript-scraper — in .env.local for local dev, or in the Vercel project settings for production. See docs/deploy.md."
         >
           <Button disabled className="bg-brand-gradient h-11 text-white">
             Extract transcript

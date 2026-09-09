@@ -280,6 +280,35 @@ generic `Error sending confirmation email`.
 
 ---
 
+## 5b. Switching transcripts on — `APIFY_TRANSCRIPT_ACTOR`
+
+Transcripts ship SWITCHED OFF. `/transcript` renders a panel reading
+"Transcripts are not switched on" and the Extract button stays disabled until
+this one variable is set. That is deliberate — the actor bills per result — but
+it was previously documented NOWHERE, so the only way to discover the value was
+to read a comment inside `src/lib/apify/client.ts`.
+
+```
+APIFY_TRANSCRIPT_ACTOR=supreme_coder/youtube-transcript-scraper
+```
+
+That is the actor the input payload is written for: `startTranscriptRun` sends
+`urls: [{ url }]`, which is that actor's schema. The other keys it sends
+(`videoUrl`, `videoUrls`, `startUrls`) are aliases other transcript actors use
+and are harmlessly ignored — so a DIFFERENT actor may work, but only one whose
+input is one of those four shapes. Anything else returns an empty dataset and
+the job finishes "successfully" with no transcript.
+
+Cost is roughly **$0.70 per 1,000 transcripts** (pay-per-result), on top of
+whatever the account's plan is. There is no free tier for it, so an Apify
+account with no credit fails the run — and the error names the WEBHOOK, not the
+credit, which is an hour lost to debugging the wrong thing.
+
+Set it in `.env.local` for dev and in Vercel for production. Vercel rejects an
+EMPTY env var, so leave it out entirely rather than adding it blank.
+
+---
+
 ## 6. After the first deploy, check these three
 
 1. **Sign in with Google.** Proves the callback and Site URL.

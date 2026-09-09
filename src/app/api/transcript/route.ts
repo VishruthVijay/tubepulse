@@ -37,8 +37,10 @@ export async function POST(request: Request) {
   if (!isTranscriptConfigured()) {
     return NextResponse.json(
       {
+        // Not ".env.local" — in production that file does not exist and the
+        // variable lives in Vercel. Says where it actually belongs instead.
         error:
-          "Transcripts are not switched on: APIFY_TRANSCRIPT_ACTOR is blank in .env.local.",
+          "Transcripts are not switched on: APIFY_TRANSCRIPT_ACTOR is not set. See docs/deploy.md.",
       },
       { status: 503 },
     );

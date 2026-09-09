@@ -148,7 +148,7 @@ export async function startTranscriptRun({
 
   if (env.APIFY_TRANSCRIPT_ACTOR === "") {
     throw new Error(
-      "Transcripts are not configured: APIFY_TRANSCRIPT_ACTOR is blank in .env.local.",
+      "Transcripts are not configured: APIFY_TRANSCRIPT_ACTOR is not set.",
     );
   }
 
