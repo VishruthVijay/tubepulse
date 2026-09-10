@@ -219,10 +219,14 @@ export async function recordPaypalSubscription(
  * Ours:    created | authenticated | active | halted | cancelled | expired
  *
  * The mapping that matters is SUSPENDED -> halted. A suspended PayPal
- * subscription is one whose payment failed and is being retried, which is
- * exactly what Razorpay calls halted — and `billingStateFrom` already keeps
- * access alive through the paid period for it. Treating it as cancelled would
- * cut off a customer whose card merely needs updating.
+ * subscription is one whose payment has failed, which is exactly what Razorpay
+ * calls halted, so both providers land on the same status and the same rule.
+ *
+ * NOTE WHAT `halted` MEANS FOR ACCESS: it is in neither PAYING nor GRACE in
+ * `status.ts`, so access STOPS — unlike `cancelled`, which keeps the tier until
+ * the paid period ends. That is deliberate and predates PayPal: a cancelled
+ * customer has paid for the period they are in, whereas a halted one's payment
+ * did not go through, so there is no paid period to honour.
  *
  * APPROVED (authorised but not yet billed) maps to `authenticated`, which is
  * already in the PAYING set, because the mandate exists at that point.
