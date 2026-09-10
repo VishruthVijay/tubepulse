@@ -1,11 +1,30 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { PLANS, PLAN_PRICES, toBillingCycle, toPaidPlanKey } from "@/lib/billing/plans";
+import {
+  PLANS,
+  PLAN_PRICES,
+  toBillingCycle,
+  toPaidPlanKey,
+  type BillingCycle,
+  type PaidPlanKey,
+} from "@/lib/billing/plans";
+import {
+  countryFromHeaders,
+  paypalPlanEnvVar,
+  providerForCountry,
+  type PaymentProvider,
+} from "@/lib/billing/provider";
+import {
+  createSubscription as createPaypalSubscription,
+  PayPalError,
+  type PayPalSubscription,
+} from "@/lib/paypal/client";
+import { recordPaypalSubscription } from "@/lib/billing/store";
 import { checkPromo, recordRedemption } from "@/lib/billing/promo-store";
 import { billingStateFrom } from "@/lib/billing/status";
 import { recordSubscription } from "@/lib/billing/store";
 import { createSubscription, RazorpayError } from "@/lib/razorpay/client";
-import { assertModeMatchesEnvironment } from "@/lib/env";
+import { assertModeMatchesEnvironment, serverEnv } from "@/lib/env";
 import { createServerClient } from "@/lib/supabase/server";
 import { publicEnv } from "@/lib/public-env";
 
@@ -33,7 +52,101 @@ const bodySchema = z.object({
   plan: z.string().optional(),
   cycle: z.string().optional(),
   promoCode: z.string().max(64).optional(),
+  /**
+   * Which provider the pricing page actually offered. Sent so the button the
+   * customer pressed is the one that runs, rather than a geo lookup silently
+   * disagreeing with what was on screen. Narrowed, never trusted.
+   */
+  provider: z.string().optional(),
 });
+
+/**
+ * Start a PayPal subscription and hand back its approval link.
+ *
+ * Mirrors the Razorpay path deliberately: nothing is charged here, the row is
+ * recorded before the customer leaves, and the webhook is what grants the tier.
+ * The difference is the customer is REDIRECTED to PayPal rather than opening a
+ * modal, so this returns a URL instead of a subscription id for a popup.
+ */
+async function startPaypalCheckout({
+  userId,
+  planKey,
+  cycle,
+  rawCode,
+}: {
+  userId: string;
+  planKey: PaidPlanKey;
+  cycle: BillingCycle;
+  rawCode: string | undefined;
+}): Promise<NextResponse> {
+  if (rawCode) {
+    // Refuse loudly. The launch codes are Razorpay Offer objects; there is no
+    // PayPal equivalent, so the only honest options are "refuse" or "charge
+    // full price after showing a discount". This is the first one.
+    return NextResponse.json(
+      {
+        error:
+          "Discount codes are not available on international checkout yet. " +
+          "Remove the code to continue.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const env = serverEnv();
+  const envVar = paypalPlanEnvVar(planKey, cycle);
+  const planId = (env as unknown as Record<string, string>)[envVar] ?? "";
+
+  if (planId === "") {
+    // Names the variable rather than failing at PayPal with "resource not
+    // found", which says nothing about which of six ids is missing.
+    return NextResponse.json(
+      { error: `International checkout is not configured: ${envVar} is not set.` },
+      { status: 503 },
+    );
+  }
+
+  let subscription: PayPalSubscription;
+  try {
+    subscription = await createPaypalSubscription({
+      planId,
+      ownerId: userId,
+      returnUrl: `${env.APP_URL}/billing?paypal=return`,
+      cancelUrl: `${env.APP_URL}/pricing?paypal=cancelled`,
+      // Idempotency: a retried create must not produce a second mandate on the
+      // same card. Scoped to the user and the exact thing being bought.
+      requestId: `sub-${userId}-${planKey}-${cycle}`,
+    });
+  } catch (error) {
+    const message =
+      error instanceof PayPalError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : "Could not reach PayPal.";
+    return NextResponse.json({ error: message }, { status: 502 });
+  }
+
+  const approveUrl = subscription.links?.find((link) => link.rel === "approve")?.href;
+
+  if (!approveUrl) {
+    // Without this the customer has a subscription they can never authorise.
+    return NextResponse.json(
+      { error: "PayPal did not return an approval link." },
+      { status: 502 },
+    );
+  }
+
+  // Recorded BEFORE the redirect, exactly as on the Razorpay path: if the
+  // webhook cannot reach us, the sync route still has an id to ask about.
+  try {
+    await recordPaypalSubscription(userId, subscription, planKey, cycle);
+  } catch {
+    // Must not block an otherwise fine checkout — the webhook upserts anyway.
+  }
+
+  return NextResponse.json({ provider: "paypal", approveUrl });
+}
 
 export async function POST(request: Request) {
   const supabase = await createServerClient();
@@ -79,6 +192,37 @@ export async function POST(request: Request) {
       { error: "You already have an active plan. Nothing to pay." },
       { status: 409 },
     );
+  }
+
+  /**
+   * WHICH PROVIDER CHARGES THIS CUSTOMER.
+   *
+   * India goes to Razorpay, everyone else to PayPal, and neither can do the
+   * other's half — see `provider.ts` for why that is forced rather than chosen.
+   * The body may name a provider (the pricing page sends what it displayed, so
+   * the button pressed is the one that runs); otherwise it is derived from the
+   * platform's geo header.
+   *
+   * Nothing security-relevant rests on this. It picks a payment method, not an
+   * entitlement — the tier always arrives from a verified webhook.
+   */
+  const requestedProvider = body.success ? body.data.provider : undefined;
+  const provider: PaymentProvider =
+    requestedProvider === "paypal" || requestedProvider === "razorpay"
+      ? requestedProvider
+      : providerForCountry(countryFromHeaders(request.headers));
+
+  if (provider === "paypal") {
+    return startPaypalCheckout({
+      userId: user.id,
+      planKey,
+      cycle,
+      // PayPal is refused a promo code rather than ignoring one: the discounts
+      // are implemented as Razorpay Offer objects and have no PayPal
+      // equivalent, so honouring the code is impossible and silently dropping
+      // it would charge full price to someone who was shown a discount.
+      rawCode: body.success ? body.data.promoCode?.trim() : undefined,
+    });
   }
 
   // Re-validate the code from scratch. The preview endpoint's answer is a

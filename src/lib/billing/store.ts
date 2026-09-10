@@ -9,11 +9,13 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient, getUser } from "@/lib/supabase/server";
+import type { PayPalSubscription } from "@/lib/paypal/client";
 import type {
   Database,
   JobKind,
   ScrapeCreditRow,
   SubscriptionRow,
+  SubscriptionStatus,
 } from "@/lib/supabase/types";
 import { toSubscriptionStatus, type RazorpaySubscription } from "@/lib/razorpay/schemas";
 import { toPaidPlanKey, type BillingCycle, type PaidPlanKey } from "./plans";
@@ -158,6 +160,91 @@ export async function recordSubscription(
   );
 
   if (error) throw new Error(`Could not record the subscription: ${error.message}`);
+}
+
+/**
+ * The PayPal half of `recordSubscription`.
+ *
+ * A SEPARATE FUNCTION rather than a branch inside that one, because almost
+ * nothing is shared: different id columns, a different status vocabulary, and
+ * no `notes` — PayPal carries our owner id in `custom_id` and nothing else, so
+ * the tier and cycle must be passed in rather than recovered from the payload.
+ *
+ * `provider: "paypal"` is written explicitly on every upsert. The database
+ * constraint added in 0016 refuses a row that carries one provider's id while
+ * claiming the other, so a mistake here fails at the write instead of producing
+ * a subscription that nothing can cancel.
+ */
+export async function recordPaypalSubscription(
+  ownerId: string,
+  subscription: PayPalSubscription,
+  planKey?: PaidPlanKey,
+  cycle?: BillingCycle,
+): Promise<void> {
+  const status = toPaypalSubscriptionStatus(subscription.status);
+  const settled = status === "cancelled" || status === "completed" || status === "expired";
+
+  const { error } = await writeClient().from("subscriptions").upsert(
+    {
+      owner_id: ownerId,
+      provider: "paypal",
+      // Same rule as the Razorpay path: only write the tier when it is known.
+      // Defaulting would silently move a paying customer onto another plan the
+      // first time a webhook arrived without one.
+      ...(planKey ? { plan_key: planKey } : {}),
+      paypal_subscription_id: subscription.id,
+      paypal_plan_id: subscription.plan_id ?? null,
+      paypal_payer_id: subscription.subscriber?.payer_id ?? null,
+      status,
+      ...(cycle ? { billing_cycle: cycle } : {}),
+      // PayPal reports the NEXT billing time, which is exactly the moment the
+      // paid period ends — the same meaning as Razorpay's `current_end`.
+      current_period_end: subscription.billing_info?.next_billing_time ?? null,
+      ...(settled
+        ? { cancel_at_period_end: false, cancelled_at: new Date().toISOString() }
+        : {}),
+    },
+    { onConflict: "owner_id" },
+  );
+
+  if (error) {
+    throw new Error(`Could not record the PayPal subscription: ${error.message}`);
+  }
+}
+
+/**
+ * PayPal's subscription status vocabulary, mapped onto ours.
+ *
+ * PayPal:  APPROVAL_PENDING | APPROVED | ACTIVE | SUSPENDED | CANCELLED | EXPIRED
+ * Ours:    created | authenticated | active | halted | cancelled | expired
+ *
+ * The mapping that matters is SUSPENDED -> halted. A suspended PayPal
+ * subscription is one whose payment failed and is being retried, which is
+ * exactly what Razorpay calls halted — and `billingStateFrom` already keeps
+ * access alive through the paid period for it. Treating it as cancelled would
+ * cut off a customer whose card merely needs updating.
+ *
+ * APPROVED (authorised but not yet billed) maps to `authenticated`, which is
+ * already in the PAYING set, because the mandate exists at that point.
+ */
+function toPaypalSubscriptionStatus(status: string): SubscriptionStatus {
+  switch (status.toUpperCase()) {
+    case "APPROVAL_PENDING":
+      return "created";
+    case "APPROVED":
+      return "authenticated";
+    case "ACTIVE":
+      return "active";
+    case "SUSPENDED":
+      return "halted";
+    case "CANCELLED":
+      return "cancelled";
+    case "EXPIRED":
+      return "expired";
+    default:
+      // An unrecognised status must not silently grant access.
+      return "created";
+  }
 }
 
 /** The cycle stamped in the subscription's notes at creation, if it is there. */

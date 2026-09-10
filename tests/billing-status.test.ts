@@ -37,6 +37,12 @@ function row(overrides: Partial<SubscriptionRow> = {}): SubscriptionRow {
     id: "00000000-0000-0000-0000-000000000001",
     owner_id: "00000000-0000-0000-0000-0000000000aa",
     plan_key: "studio",
+    // Existing rows are Razorpay's; PayPal ids are null on them, which is what
+    // the 0016 constraint requires.
+    provider: "razorpay",
+    paypal_subscription_id: null,
+    paypal_plan_id: null,
+    paypal_payer_id: null,
     razorpay_subscription_id: "sub_test123",
     razorpay_customer_id: "cust_test123",
     razorpay_plan_id: "plan_test123",

@@ -5,7 +5,9 @@ import { ScrollChoreography } from "@/components/landing/scroll-choreography";
 import { SmoothScroll } from "@/components/landing/smooth-scroll";
 import { toBillingCycle, toPaidPlanKey } from "@/lib/billing/plans";
 import { getBillingState } from "@/lib/billing/store";
-import { isBillingConfigured, isYearlyConfigured } from "@/lib/env";
+import { isBillingConfigured, isPaypalConfigured, isYearlyConfigured } from "@/lib/env";
+import { countryFromHeaders, providerForCountry } from "@/lib/billing/provider";
+import { headers } from "next/headers";
 import { isCheckoutConfigured, isSupabaseConfigured } from "@/lib/public-env";
 import { getUser } from "@/lib/supabase/server";
 
@@ -37,6 +39,19 @@ export default async function PricingPage({
   // Set when someone clicked Go Pro while signed out: they are returned to the
   // card they actually chose, at the price they actually saw.
   const { cycle, plan } = await searchParams;
+
+  /**
+   * WHICH PROVIDER THIS VISITOR GETS.
+   *
+   * India -> Razorpay, everyone else -> PayPal, and neither can do the other's
+   * half (see provider.ts). Decided on the SERVER so the page renders the right
+   * button on first paint rather than flickering from one to the other.
+   */
+  const provider = providerForCountry(countryFromHeaders(await headers()));
+  const canCheckoutFor =
+    provider === "paypal"
+      ? isPaypalConfigured()
+      : isCheckoutConfigured && isBillingConfigured();
   const user = isSupabaseConfigured ? await getUser() : null;
   const billing = user ? await getBillingState() : null;
 
@@ -51,7 +66,8 @@ export default async function PricingPage({
         // Both halves must be present: the browser needs the key id to open
         // checkout, the server needs the secret and plan id to create the
         // subscription. Either missing means the button should not pretend.
-        canCheckout={isCheckoutConfigured && isBillingConfigured()}
+        canCheckout={canCheckoutFor}
+        provider={provider}
         // Hides the monthly/yearly toggle entirely when the annual Razorpay
         // plan is not set up. A switch that produces an error is worse than no
         // switch at all.

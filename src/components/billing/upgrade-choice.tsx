@@ -34,10 +34,13 @@ import { useUpgrade } from "./use-upgrade";
 export function UpgradeChoice({
   canYearly,
   currentPlan = null,
+  provider = "razorpay",
 }: {
   canYearly: boolean;
   /** The tier they are on, so it is not offered back to them. */
   currentPlan?: PaidPlanKey | null;
+  /** Which gateway this customer checks out through. Decided server-side. */
+  provider?: "razorpay" | "paypal";
 }) {
   /**
    * ONLY the tiers above the one they already pay for.
@@ -254,7 +257,7 @@ export function UpgradeChoice({
         <Button
           type="button"
           disabled={busy || Boolean(currentPlan)}
-          onClick={() => start({ plan, cycle, promoCode: promo?.code })}
+          onClick={() => start({ plan, cycle, promoCode: promo?.code, provider })}
         >
           {busy && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />}
           {busy

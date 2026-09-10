@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { billingStateFrom } from "@/lib/billing/status";
-import { recordSubscription } from "@/lib/billing/store";
+import { recordPaypalSubscription, recordSubscription } from "@/lib/billing/store";
+import { toBillingCycle, toPaidPlanKey } from "@/lib/billing/plans";
 import { fetchSubscription } from "@/lib/razorpay/client";
+import { getSubscription as getPaypalSubscription } from "@/lib/paypal/client";
 import { createServerClient } from "@/lib/supabase/server";
 
 /**
@@ -43,21 +45,53 @@ export async function POST() {
 
   // Nothing was ever started, so there is nothing to reconcile. Not an error —
   // the billing page calls this on load.
-  if (!row?.razorpay_subscription_id) {
+  if (!row?.razorpay_subscription_id && !row?.paypal_subscription_id) {
     return NextResponse.json({ state: billingStateFrom(row ?? null), synced: false });
   }
 
-  try {
-    const subscription = await fetchSubscription(row.razorpay_subscription_id);
-    await recordSubscription(user.id, subscription);
-  } catch (error) {
-    return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Could not reach Razorpay.",
-        state: billingStateFrom(row),
-      },
-      { status: 502 },
-    );
+  /**
+   * PAYPAL'S SYNC CARRIES MORE WEIGHT THAN RAZORPAY'S.
+   *
+   * On the Razorpay path this is a fallback for a webhook that never arrived.
+   * On the PayPal path it is ALSO how a checkout completes: the customer is
+   * redirected back to /billing after approving, and this is what turns the
+   * pending row into an active plan if the webhook has not landed yet.
+   *
+   * The tier and cycle are read off the existing row and passed back in —
+   * PayPal has no `notes`, so omitting them would blank the plan a customer
+   * just paid for.
+   */
+  if (row.provider === "paypal" && row.paypal_subscription_id) {
+    try {
+      const subscription = await getPaypalSubscription(row.paypal_subscription_id);
+      await recordPaypalSubscription(
+        user.id,
+        subscription,
+        toPaidPlanKey(row.plan_key) ?? undefined,
+        toBillingCycle(row.billing_cycle) ?? undefined,
+      );
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: error instanceof Error ? error.message : "Could not reach PayPal.",
+          state: billingStateFrom(row),
+        },
+        { status: 502 },
+      );
+    }
+  } else if (row.razorpay_subscription_id) {
+    try {
+      const subscription = await fetchSubscription(row.razorpay_subscription_id);
+      await recordSubscription(user.id, subscription);
+    } catch (error) {
+      return NextResponse.json(
+        {
+          error: error instanceof Error ? error.message : "Could not reach Razorpay.",
+          state: billingStateFrom(row),
+        },
+        { status: 502 },
+      );
+    }
   }
 
   const { data: fresh } = await supabase

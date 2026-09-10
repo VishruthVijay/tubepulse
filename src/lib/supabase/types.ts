@@ -245,9 +245,19 @@ export type SubscriptionRow = {
   id: string;
   owner_id: string;
   plan_key: string;
+  /**
+   * Which gateway charges this subscription: 'razorpay' (India) or 'paypal'
+   * (international). Defaults to 'razorpay' so pre-PayPal rows keep meaning.
+   */
+  provider: "razorpay" | "paypal";
   razorpay_subscription_id: string | null;
   razorpay_customer_id: string | null;
   razorpay_plan_id: string | null;
+  /** PayPal's subscription id (I-...). Null on a Razorpay row. */
+  paypal_subscription_id: string | null;
+  /** PayPal's plan id (P-...). Kept for support and reconciliation. */
+  paypal_plan_id: string | null;
+  paypal_payer_id: string | null;
   status: SubscriptionStatus;
   /** Monthly or yearly. Not derivable from razorpay_plan_id, which is opaque. */
   billing_cycle: BillingCycleValue;
@@ -348,10 +358,29 @@ export type Database = {
           | "promo_cycles_total"
           | "promo_cycles_remaining"
           | "promo_renews_at_cents"
+          // The provider columns follow the same rule. A Razorpay upsert must
+          // be able to omit the PayPal ids entirely (and vice versa) rather
+          // than write nulls across the other provider's row — and `provider`
+          // itself has a database default of 'razorpay', so an upsert written
+          // before PayPal existed stays correct without naming it.
+          | "provider"
+          | "paypal_subscription_id"
+          | "paypal_plan_id"
+          | "paypal_payer_id"
+          | "razorpay_subscription_id"
+          | "razorpay_customer_id"
+          | "razorpay_plan_id"
         > & {
           id?: string;
           updated_at?: string;
           plan_key?: string;
+          provider?: "razorpay" | "paypal";
+          paypal_subscription_id?: string | null;
+          paypal_plan_id?: string | null;
+          paypal_payer_id?: string | null;
+          razorpay_subscription_id?: string | null;
+          razorpay_customer_id?: string | null;
+          razorpay_plan_id?: string | null;
           status?: SubscriptionStatus;
           billing_cycle?: BillingCycleValue;
           cancel_at_period_end?: boolean;

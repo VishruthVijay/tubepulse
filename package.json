@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": false,
   "author": "Vishruth Vijay",
-  "description": "TubePulse — evidence-backed YouTube competitor research: real video performance, outliers scored against a channel's own median, and video ideas with their receipts attached.",
+  "description": "TubePulse \u2014 evidence-backed YouTube competitor research: real video performance, outliers scored against a channel's own median, and video ideas with their receipts attached.",
   "scripts": {
     "dev": "next dev -p 3111",
     "build": "next build",
@@ -16,7 +16,8 @@
     "check:env": "node scripts/check-env-example.mjs",
     "db:sql": "node scripts/print-migrations.mjs",
     "razorpay:plan": "node scripts/create-razorpay-plan.mjs",
-    "razorpay:check": "node scripts/check-razorpay.mjs"
+    "razorpay:check": "node scripts/check-razorpay.mjs",
+    "paypal:plan": "node scripts/create-paypal-plan.mjs"
   },
   "dependencies": {
     "@mendable/firecrawl-js": "^4.32.2",

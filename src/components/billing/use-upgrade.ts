@@ -59,6 +59,7 @@ export function useUpgrade(onDone?: () => void) {
     plan: PaidPlanKey;
     cycle?: BillingCycle;
     promoCode?: string;
+    provider?: "razorpay" | "paypal";
   }) {
     setBusy(true);
 
@@ -70,6 +71,9 @@ export function useUpgrade(onDone?: () => void) {
           plan: options.plan,
           cycle: options.cycle ?? "monthly",
           promoCode: options.promoCode,
+          // What the page actually displayed, so the button pressed is the one
+          // that runs rather than a geo lookup disagreeing with the screen.
+          provider: options.provider,
         }),
       });
 
@@ -80,7 +84,24 @@ export function useUpgrade(onDone?: () => void) {
         cycle?: BillingCycle;
         email?: string;
         error?: string;
+        provider?: "razorpay" | "paypal";
+        approveUrl?: string;
       };
+
+      /**
+       * PAYPAL REDIRECTS, it does not open a modal.
+       *
+       * `busy` is deliberately NOT cleared here: the page is navigating away,
+       * and re-enabling the button for the split second before it unloads
+       * invites a second click and a second subscription.
+       *
+       * The customer returns to /billing?paypal=return, where the sync route
+       * turns the pending row into an active plan.
+       */
+      if (response.ok && data.provider === "paypal" && data.approveUrl) {
+        window.location.href = data.approveUrl;
+        return;
+      }
 
       if (!response.ok || !data.subscriptionId || !data.keyId) {
         toast.error(data.error ?? "Could not start the upgrade.");
@@ -133,6 +154,7 @@ export function useUpgrade(onDone?: () => void) {
       plan: PaidPlanKey;
       cycle?: BillingCycle;
       promoCode?: string;
+      provider?: "razorpay" | "paypal";
     }) => void start(options),
   };
 }

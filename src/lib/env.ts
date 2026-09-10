@@ -70,6 +70,42 @@ const serverEnvSchema = z.object({
   RAZORPAY_PLAN_ID_STUDIO_YEARLY: z.string().default(""),
   RAZORPAY_PLAN_ID_AGENCY_MONTHLY: z.string().default(""),
   RAZORPAY_PLAN_ID_AGENCY_YEARLY: z.string().default(""),
+
+  // --- PayPal --------------------------------------------------------------
+  // International subscriptions. Razorpay covers India; PayPal covers everyone
+  // else, and the split is forced from both sides — see src/lib/paypal/client.ts.
+  //
+  // Defaulted to "" for the same reason the Razorpay block is: serverEnv()
+  // validates the whole schema on first call, so a required-but-unset variable
+  // here would take down every route on a machine that has not set PayPal up.
+  PAYPAL_CLIENT_ID: z.string().default(""),
+  PAYPAL_CLIENT_SECRET: z.string().default(""),
+  /**
+   * Which PayPal environment the credentials belong to.
+   *
+   * Everything at PayPal exists separately per environment — credentials, plan
+   * ids and webhook ids — so a sandbox plan id next to live credentials fails
+   * with a confusing "resource not found" rather than anything about modes.
+   * `assertModeMatchesEnvironment` cross-checks this against APP_URL.
+   */
+  PAYPAL_ENV: z.enum(["sandbox", "live"]).default("sandbox"),
+  /**
+   * The webhook id PayPal issued for our endpoint. NOT a secret in the HMAC
+   * sense — it is an identifier passed to their verify endpoint, which is what
+   * actually checks the signature. Without it no webhook can be verified, so
+   * the route rejects everything rather than trusting anything.
+   */
+  PAYPAL_WEBHOOK_ID: z.string().default(""),
+
+  // Six plan ids, same shape and same reason as Razorpay's: a PayPal plan
+  // hard-codes amount, currency AND interval. Only the three monthly ones are
+  // required; blank yearly ids hide the annual toggle rather than breaking it.
+  PAYPAL_PLAN_ID_CREATOR_MONTHLY: z.string().default(""),
+  PAYPAL_PLAN_ID_CREATOR_YEARLY: z.string().default(""),
+  PAYPAL_PLAN_ID_STUDIO_MONTHLY: z.string().default(""),
+  PAYPAL_PLAN_ID_STUDIO_YEARLY: z.string().default(""),
+  PAYPAL_PLAN_ID_AGENCY_MONTHLY: z.string().default(""),
+  PAYPAL_PLAN_ID_AGENCY_YEARLY: z.string().default(""),
 });
 
 export type ServerEnv = z.infer<typeof serverEnvSchema>;
@@ -172,12 +208,37 @@ export function razorpayMode(): RazorpayMode {
  * expected. A build that fails loudly is cheaper than that.
  */
 export function assertModeMatchesEnvironment(): void {
-  if (process.env.NODE_ENV === "production" && razorpayMode() === "test") {
+  if (process.env.NODE_ENV !== "production") return;
+
+  if (razorpayMode() === "test") {
     throw new Error(
       "Razorpay TEST keys are configured in a production build. Test keys take " +
         "no real money — swap in the rzp_live_ pair, and remember the plan ids " +
         "and webhook secret are per-mode too. See docs/billing-setup.md.",
     );
+  }
+
+  /**
+   * The same trap on the PayPal side, and it fails just as silently: a sandbox
+   * subscription is approved exactly like a real one, the customer sees a
+   * success screen, and no money ever arrives. Only checked when PayPal is
+   * actually configured — an unset PAYPAL_CLIENT_ID means the international
+   * path is switched off, not misconfigured.
+   */
+  try {
+    const env = serverEnv();
+    if (env.PAYPAL_CLIENT_ID !== "" && env.PAYPAL_ENV === "sandbox") {
+      throw new Error(
+        "PayPal SANDBOX credentials are configured in a production build. " +
+          "Sandbox takes no real money — swap in the live client id and secret, " +
+          "set PAYPAL_ENV=live, and remember the plan ids and webhook id are " +
+          "per-environment too. See docs/paypal-setup.md.",
+      );
+    }
+  } catch (error) {
+    // Re-throw our own message; swallow a serverEnv() failure, which is a
+    // different problem that other checks already report.
+    if (error instanceof Error && error.message.startsWith("PayPal SANDBOX")) throw error;
   }
 }
 
@@ -258,6 +319,51 @@ export function billingConfigProblem(): string | null {
     // billing page in production too, where that file does not exist and the
     // values live in Vercel. Names only, never values.
     : `Not set: ${missing.join(", ")}.`;
+}
+
+/**
+ * The three MONTHLY PayPal plan ids, mirroring REQUIRED_BILLING_KEYS.
+ *
+ * Yearly ids are deliberately absent for the same reason as Razorpay's: monthly
+ * is the core product and must work alone, while annual is an upsell that can
+ * be switched on later.
+ */
+const REQUIRED_PAYPAL_KEYS = [
+  "PAYPAL_CLIENT_ID",
+  "PAYPAL_CLIENT_SECRET",
+  "PAYPAL_PLAN_ID_CREATOR_MONTHLY",
+  "PAYPAL_PLAN_ID_STUDIO_MONTHLY",
+  "PAYPAL_PLAN_ID_AGENCY_MONTHLY",
+] as const;
+
+/**
+ * Why international checkout is switched off, in one sentence — or null.
+ *
+ * Deliberately does NOT name .env.local: this renders in production too, where
+ * that file does not exist and the values live in Vercel. Names only, never
+ * values.
+ *
+ * PAYPAL_WEBHOOK_ID is excluded on purpose. Checkout works without it — the
+ * customer can subscribe and the sync route will pick the result up. Only
+ * automatic renewals need the webhook, so a missing id must not hide the
+ * button; it is checked where it is used instead.
+ */
+export function paypalConfigProblem(): string | null {
+  let env: ReturnType<typeof serverEnv>;
+
+  try {
+    env = serverEnv();
+  } catch (error) {
+    return error instanceof Error ? error.message : "The server environment failed to load.";
+  }
+
+  const missing = REQUIRED_PAYPAL_KEYS.filter((key) => env[key] === "");
+  return missing.length === 0 ? null : `Not set: ${missing.join(", ")}.`;
+}
+
+/** True when international (PayPal) checkout can run. Never throws. */
+export function isPaypalConfigured(): boolean {
+  return paypalConfigProblem() === null;
 }
 
 /** True when billing is fully configured. Never throws. */

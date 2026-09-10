@@ -39,6 +39,10 @@ export interface BillingState {
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   razorpaySubscriptionId: string | null;
+  /** Which gateway charges this subscription. Decides where a cancel goes. */
+  provider: "razorpay" | "paypal";
+  /** PayPal's subscription id, when this is a PayPal row. */
+  paypalSubscriptionId: string | null;
   /** True when the user can start a fresh checkout. */
   canSubscribe: boolean;
   /** True when there is something to cancel. */
@@ -77,6 +81,8 @@ export const FREE_STATE: BillingState = {
   currentPeriodEnd: null,
   cancelAtPeriodEnd: false,
   razorpaySubscriptionId: null,
+  provider: "razorpay",
+  paypalSubscriptionId: null,
   canSubscribe: true,
   canCancel: false,
   headline: "You are on Scout, the free plan.",
@@ -134,13 +140,21 @@ export function billingStateFrom(
     currentPeriodEnd: endsOn,
     cancelAtPeriodEnd: row.cancel_at_period_end,
     razorpaySubscriptionId: row.razorpay_subscription_id,
-    // Never offer checkout to someone already paying — Razorpay would happily
-    // create a second mandate and charge them twice.
+    provider: row.provider ?? "razorpay",
+    paypalSubscriptionId: row.paypal_subscription_id ?? null,
+    // Never offer checkout to someone already paying — either provider would
+    // happily create a second mandate and charge them twice.
     canSubscribe: !active && !PAYING.includes(row.status),
+    /**
+     * EITHER provider's id counts. Checking only the Razorpay one meant a
+     * PayPal customer saw no cancel button at all — a subscription they could
+     * not stop from inside the product, which is the exact reputation this
+     * page exists to avoid.
+     */
     canCancel:
       PAYING.includes(row.status) &&
       !row.cancel_at_period_end &&
-      Boolean(row.razorpay_subscription_id),
+      Boolean(row.razorpay_subscription_id ?? row.paypal_subscription_id),
     headline: headlineFor(row, active, tier, endsOn),
     promo: activePromoFrom(row, active),
   };

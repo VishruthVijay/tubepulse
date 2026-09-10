@@ -128,6 +128,7 @@ export function ProPlans({
   canYearly,
   initialCycle = "monthly",
   initialPlan = null,
+  provider = "razorpay",
 }: {
   signedIn: boolean;
   /** The tier they are already on, so its card says so instead of selling it. */
@@ -140,6 +141,8 @@ export function ProPlans({
   initialCycle?: BillingCycle;
   /** The tier pressed before signing in, from ?plan=. Scrolled to on return. */
   initialPlan?: PaidPlanKey | null;
+  /** Which gateway this visitor checks out through. Decided server-side. */
+  provider?: "razorpay" | "paypal";
 }) {
   const [cycle, setCycle] = useState<BillingCycle>(initialCycle);
   const [promo, setPromo] = useState<AppliedPromo | null>(null);
@@ -407,7 +410,7 @@ export function ProPlans({
                     </MagneticButton>
                   ) : live ? (
                     <MagneticButton
-                      onClick={() => start({ plan: key, cycle, promoCode: applied?.code })}
+                      onClick={() => start({ plan: key, cycle, promoCode: applied?.code, provider })}
                       disabled={busy}
                       className="w-full"
                     >
@@ -454,7 +457,7 @@ export function ProPlans({
                     </p>
                   )}
 
-                  {live && (
+                  {live && provider === "razorpay" && (
                     <PromoField
                       target="subscription"
                       plan={key}

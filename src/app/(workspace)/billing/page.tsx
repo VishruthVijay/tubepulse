@@ -1,6 +1,8 @@
 import { AlertCircle, Check, CreditCard, ShieldCheck } from "lucide-react";
 import { CancelButton } from "@/components/billing/cancel-button";
 import { RefreshBillingButton } from "@/components/billing/refresh-button";
+import { PaypalReturn } from "@/components/billing/paypal-return";
+import { Suspense } from "react";
 import { UpgradeChoice } from "@/components/billing/upgrade-choice";
 import { EmptyState, PanelBadge, WorkspacePanel } from "@/components/workspace/panel";
 import {
@@ -14,9 +16,13 @@ import { getBillingState, getCreditHistory } from "@/lib/billing/store";
 import {
   billingConfigProblem,
   isBillingConfigured,
+  isPaypalConfigured,
+  paypalConfigProblem,
   isYearlyConfigured,
   razorpayMode,
 } from "@/lib/env";
+import { countryFromHeaders, providerForCountry } from "@/lib/billing/provider";
+import { headers } from "next/headers";
 import { isCheckoutConfigured } from "@/lib/public-env";
 
 export const metadata = { title: "Billing — TubePulse" };
@@ -44,10 +50,26 @@ export default async function BillingPage() {
     getCreditHistory(5),
   ]);
 
-  const ready = isBillingConfigured() && isCheckoutConfigured;
+  /**
+   * Which gateway THIS customer would check out through.
+   *
+   * An existing subscriber keeps whatever charged them — moving a paying
+   * customer to the other provider mid-subscription would leave a live mandate
+   * behind at the first one. Only a new subscriber is routed by country.
+   */
+  const provider =
+    state.provider !== "razorpay" || state.razorpaySubscriptionId
+      ? state.provider
+      : providerForCountry(countryFromHeaders(await headers()));
+
+  const ready =
+    provider === "paypal"
+      ? isPaypalConfigured()
+      : isBillingConfigured() && isCheckoutConfigured;
   // The exact missing variable names, so the banner below can say which rather
   // than blaming "keys" when the keys are fine. Null once billing is ready.
-  const configProblem = billingConfigProblem();
+  const configProblem =
+    provider === "paypal" ? paypalConfigProblem() : billingConfigProblem();
   const canYearly = isYearlyConfigured();
   // Shown on screen when true. Someone testing needs to know at a glance that
   // no real money is moving; discovering it later, from a missing payout, is
@@ -67,8 +89,18 @@ export default async function BillingPage() {
           {state.isPaid ? plan.name : `${plan.name} — free`}
         </PanelBadge>
       }
-      action={ready && state.razorpaySubscriptionId ? <RefreshBillingButton /> : undefined}
+      action={
+        ready && (state.razorpaySubscriptionId ?? state.paypalSubscriptionId) ? (
+          <RefreshBillingButton />
+        ) : undefined
+      }
     >
+      {/* Completes a PayPal checkout on return from approval. Renders nothing.
+          Suspense because useSearchParams needs a boundary in a server page. */}
+      <Suspense fallback={null}>
+        <PaypalReturn />
+      </Suspense>
+
       {testMode && (
         <EmptyState className="border-sky-500/40 bg-sky-500/5">
           <span className="flex items-start gap-3">
@@ -108,9 +140,18 @@ export default async function BillingPage() {
               Upgrading is switched off because billing is not fully configured.
               Nothing is broken.{" "}
               {configProblem && <code>{configProblem}</code>}{" "}
-              See <code>docs/billing-setup.md</code>. Plan ids can only be
-              created once Razorpay has approved international payments, so
-              blanks are expected until then.
+              {provider === "paypal" ? (
+                <>
+                  See <code>docs/paypal-setup.md</code> for how to create the
+                  plans and where each value goes.
+                </>
+              ) : (
+                <>
+                  See <code>docs/billing-setup.md</code>. Razorpay plan ids can
+                  only be created once international payments are approved, so
+                  blanks are expected until then.
+                </>
+              )}
             </span>
           </span>
         </EmptyState>
@@ -165,7 +206,11 @@ export default async function BillingPage() {
         */}
         {ready && (
           <div className="border-border/60 mt-6 border-t pt-6">
-            <UpgradeChoice canYearly={canYearly} currentPlan={state.subscribedTier} />
+            <UpgradeChoice
+              canYearly={canYearly}
+              currentPlan={state.subscribedTier}
+              provider={provider}
+            />
           </div>
         )}
 

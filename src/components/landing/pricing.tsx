@@ -84,7 +84,10 @@ const FAQS = [
   },
   {
     q: "How do I pay?",
-    a: "Razorpay — cards, UPI Autopay, netbanking or wallets. It renews itself until you stop it. Card details are entered in Razorpay's own window and never reach us.",
+    // Both gateways named, because this list is static and the same page is
+    // served to both audiences. Saying only "Razorpay" told an international
+    // customer they would be charged through something they never see.
+    a: "In India, Razorpay — UPI Autopay, cards or eMandate. Everywhere else, PayPal — your PayPal balance or any card it accepts. Either way it renews itself until you stop it, and your card details are entered on the payment provider's own site, never ours.",
   },
   {
     q: "Do unused runs roll over?",
@@ -96,7 +99,7 @@ const FAQS = [
   },
   {
     q: "Can I cancel?",
-    a: `Any time, from the billing page, in two clicks. That also switches off the autopay mandate at Razorpay, so nothing further can be charged — you are never asked to cancel the same thing twice. You keep your plan until the period you already paid for runs out, then your projects and saved ideas stay readable on ${FREE.name}.`,
+    a: `Any time, from the billing page, in two clicks. That also switches off the autopay mandate at whichever provider charges you, so nothing further can be charged — you are never asked to cancel the same thing twice. You keep your plan until the period you already paid for runs out, then your projects and saved ideas stay readable on ${FREE.name}.`,
   },
 ];
 
@@ -107,6 +110,7 @@ export function Pricing({
   canYearly = false,
   initialCycle = "monthly",
   initialPlan = null,
+  provider = "razorpay",
 }: {
   signedIn?: boolean;
   /** The tier they are already on, so its card says so instead of selling it. */
@@ -123,6 +127,8 @@ export function Pricing({
    * the price they actually chose rather than at the top of the page.
    */
   initialPlan?: PaidPlanKey | null;
+  /** Which gateway this visitor checks out through. Decided server-side. */
+  provider?: "razorpay" | "paypal";
 }) {
   return (
     <div className="tp-landing tp-no-js bg-background text-foreground relative">
@@ -172,6 +178,7 @@ export function Pricing({
           canYearly={canYearly}
           initialCycle={initialCycle}
           initialPlan={initialPlan}
+          provider={provider}
         />
 
         <p
@@ -185,9 +192,19 @@ export function Pricing({
             wallet cannot hold a mandate at all, which is the same reason
             PayPal can never be the subscription path here.
           */}
-          Charged automatically by Razorpay until you stop it. UPI Autopay,
-          cards and eMandate. Card details are entered in Razorpay&rsquo;s own
-          window and never reach us.
+          {provider === "paypal" ? (
+            <>
+              Charged automatically by PayPal until you stop it. Pay with your
+              PayPal balance or any card PayPal accepts. Card details are
+              entered on PayPal&rsquo;s own site and never reach us.
+            </>
+          ) : (
+            <>
+              Charged automatically by Razorpay until you stop it. UPI Autopay,
+              cards and eMandate. Card details are entered in Razorpay&rsquo;s
+              own window and never reach us.
+            </>
+          )}
         </p>
       </section>
 
