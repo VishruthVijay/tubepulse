@@ -200,7 +200,9 @@ function buildPlans(prices) {
     plans.push({
       key: tier.key,
       envVar: `RAZORPAY_PLAN_ID_${upper}_MONTHLY`,
-      name: `TubePulse ${tier.label} — Monthly`,
+      // ASCII ONLY. An em-dash here reached Razorpay as "TubePulse Pro ? Monthly"
+      // on the existing live plans, and a plan name cannot be edited afterwards.
+      name: `TubePulse ${tier.label} Monthly`,
       description: tier.blurb,
       amountPaise: monthlyCents,
       period: "monthly",
@@ -209,7 +211,7 @@ function buildPlans(prices) {
     plans.push({
       key: tier.key,
       envVar: `RAZORPAY_PLAN_ID_${upper}_YEARLY`,
-      name: `TubePulse ${tier.label} — Yearly`,
+      name: `TubePulse ${tier.label} Yearly`,
       description: `${tier.blurb}. Two months free.`,
       amountPaise: monthlyCents * YEARLY_MONTHS_CHARGED,
       period: "yearly",
