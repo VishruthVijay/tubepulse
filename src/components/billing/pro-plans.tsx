@@ -9,11 +9,11 @@ import {
   PAID_PLAN_KEYS,
   PLANS,
   PLAN_PRICES,
-  formatUsd,
-  perMonthUsd,
+  formatInr,
+  perMonthInr,
   spellOut,
   yearlySavingPercent,
-  yearlySavingUsd,
+  yearlySavingInr,
   type BillingCycle,
   type PaidPlanKey,
   type Plan,
@@ -245,7 +245,7 @@ export function ProPlans({
             </p>
 
             <div className="mt-6 flex items-baseline gap-2">
-              <span className="font-display text-5xl">{formatUsd(FREE.priceUsd)}</span>
+              <span className="font-display text-5xl">{formatInr(FREE.priceInr)}</span>
               <span className="text-muted-foreground text-sm">forever</span>
             </div>
             <p className="text-muted-foreground/60 mt-2 text-xs">
@@ -299,7 +299,7 @@ export function ProPlans({
 
           // The promo only applies to the card it was validated against.
           const applied = promoFor === key ? promo : null;
-          const finalCents = applied ? applied.finalCents : price.priceCents;
+          const finalCents = applied ? applied.finalCents : price.pricePaise;
 
           const chosen = initialPlan === key;
 
@@ -338,10 +338,10 @@ export function ProPlans({
 
                 <div className="mt-6 flex items-baseline gap-2">
                   <span className="font-display text-5xl">
-                    {formatUsd(
+                    {formatInr(
                       cycle === "yearly"
-                        ? Math.round(perMonthUsd(price) * 100) / 100
-                        : plan.priceUsd,
+                        ? Math.round(perMonthInr(price) * 100) / 100
+                        : plan.priceInr,
                     )}
                   </span>
                   <span className="text-muted-foreground text-sm">/month</span>
@@ -356,9 +356,9 @@ export function ProPlans({
                 <p className="text-muted-foreground/60 mt-2 text-xs">
                   {cycle === "yearly" ? (
                     <>
-                      {formatUsd(price.priceUsd)} billed once a year
-                      {yearlySavingUsd(key) > 0 && (
-                        <> — saves {formatUsd(yearlySavingUsd(key))}</>
+                      {formatInr(price.priceInr)} billed once a year
+                      {yearlySavingInr(key) > 0 && (
+                        <> — saves {formatInr(yearlySavingInr(key))}</>
                       )}
                     </>
                   ) : (
@@ -369,12 +369,12 @@ export function ProPlans({
                 {applied && (
                   <div className="mt-2 space-y-2">
                     <p className="text-[var(--brand-2)] text-xs">
-                      {applied.label}: {formatUsd(finalCents / 100)} today.
+                      {applied.label}: {formatInr(finalCents / 100)} today.
                     </p>
                     <PromoDisclosure
                       cyclesCovered={applied.cyclesCovered}
                       discountedCents={applied.finalCents}
-                      renewsAtCents={applied.renewsAtCents ?? price.priceCents}
+                      renewsAtCents={applied.renewsAtCents ?? price.pricePaise}
                       cycle={cycle}
                     />
                   </div>

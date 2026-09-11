@@ -49,9 +49,9 @@ describe("plansAbove", () => {
 
   it("never offers a cheaper tier than the current one", () => {
     for (const key of PAID_PLAN_KEYS) {
-      const current = PLANS[key].priceCents;
+      const current = PLANS[key].pricePaise;
       for (const offered of plansAbove(key)) {
-        expect(PLANS[offered].priceCents).toBeGreaterThan(current);
+        expect(PLANS[offered].pricePaise).toBeGreaterThan(current);
       }
     }
   });

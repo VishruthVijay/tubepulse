@@ -9,7 +9,7 @@ import {
   HIGHLIGHTED_PLAN,
   PLANS,
   PLAN_PRICES,
-  formatUsd,
+  formatInr,
 } from "@/lib/billing/plans";
 import { formatDate } from "@/lib/billing/status";
 import { getBillingState, getCreditHistory } from "@/lib/billing/store";
@@ -168,8 +168,8 @@ export default async function BillingPage() {
               {plan.name}
               <span className="text-muted-foreground ml-3 text-base font-normal">
                 {state.isPaid && state.subscribedTier
-                  ? `${formatUsd(
-                      PLAN_PRICES[state.subscribedTier][state.cycle].priceUsd,
+                  ? `${formatInr(
+                      PLAN_PRICES[state.subscribedTier][state.cycle].priceInr,
                     )} ${state.cycle === "yearly" ? "a year" : "a month"}`
                   : "Free"}
               </span>

@@ -53,7 +53,7 @@ describe("the ladder never goes backwards", () => {
       const lower = PLANS[LADDER[index - 1]];
       const higher = PLANS[LADDER[index]];
       expect(higher.runs).toBeGreaterThan(lower.runs);
-      expect(higher.priceUsd).toBeGreaterThan(lower.priceUsd);
+      expect(higher.priceInr).toBeGreaterThan(lower.priceInr);
     }
   });
 

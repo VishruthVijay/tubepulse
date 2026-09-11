@@ -423,7 +423,7 @@ export function renewalNoticeFor(
   const amount = renewsAtCents ?? promo.renewsAtCents;
   if (amount === null || amount === undefined) return null;
 
-  const price = formatCents(amount);
+  const price = formatPaise(amount);
 
   // Said in months for a monthly code, because "after the first year" on a
   // two-month discount would be a false statement about when money changes.
@@ -434,19 +434,28 @@ export function renewalNoticeFor(
   return `Renews at ${price} after the first year.`;
 }
 
-/** "30% off" / "$25 off" — what the badge next to the field says. */
+/** "30% off" / "₹250 off" — what the badge next to the field says. */
 export function describe(promo: PromoCode, planKey?: PlanKey): string {
   return promo.kind === "percent"
     ? `${percentFor(promo, planKey)}% off`
-    : `${formatCents(promo.value)} off`;
+    : `${formatPaise(promo.value)} off`;
 }
 
-/** Local formatter so this module stays free of imports it does not need. */
-function formatCents(cents: number): string {
-  const dollars = cents / 100;
-  return Number.isInteger(dollars)
-    ? `$${dollars.toLocaleString("en-US")}`
-    : `$${dollars.toLocaleString("en-US", {
+/**
+ * Local formatter so this module stays free of imports it does not need.
+ *
+ * MUST MATCH `formatInr` in plans.ts. It is duplicated rather than imported to
+ * keep this module dependency-free, and that duplication has already cost
+ * once: when pricing moved to rupees this function was left formatting
+ * dollars, so the card step promised "Renews at $12,990" on a rupee plan —
+ * right number, wrong currency, in the one sentence that tells a customer what
+ * they will be charged later. If you change one, change both.
+ */
+function formatPaise(paise: number): string {
+  const rupees = paise / 100;
+  return Number.isInteger(rupees)
+    ? `₹${rupees.toLocaleString("en-IN")}`
+    : `₹${rupees.toLocaleString("en-IN", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       })}`;

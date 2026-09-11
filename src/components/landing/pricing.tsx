@@ -11,7 +11,7 @@ import {
   HIGHLIGHTED_PLAN,
   PLANS,
   PLAN_PRICES,
-  formatUsd,
+  formatInr,
   spellOutCapitalised,
   yearlySavingPercent,
 } from "@/lib/billing/plans";
@@ -72,7 +72,7 @@ const FAQS = [
   },
   {
     q: "Is yearly actually cheaper?",
-    a: `Yes, by ${yearlySavingPercent()}% — ${formatUsd(PLAN_PRICES[HIGHLIGHTED_PLAN].yearly.priceUsd)} for the year against ${formatUsd(PLAN_PRICES[HIGHLIGHTED_PLAN].monthly.priceUsd * 12)} paid monthly. Twelve months for the price of ten. The page shows both the per-month figure and the amount that actually leaves your account, because quoting only the first is how people get surprised at checkout.`,
+    a: `Yes, by ${yearlySavingPercent()}% — ${formatInr(PLAN_PRICES[HIGHLIGHTED_PLAN].yearly.priceInr)} for the year against ${formatInr(PLAN_PRICES[HIGHLIGHTED_PLAN].monthly.priceInr * 12)} paid monthly. Twelve months for the price of ten. The page shows both the per-month figure and the amount that actually leaves your account, because quoting only the first is how people get surprised at checkout.`,
   },
   {
     q: "What is the difference between the models?",
@@ -312,7 +312,7 @@ export function Pricing({
           </div>
           <p className="text-muted-foreground/70 mx-auto mt-10 max-w-lg text-xs leading-relaxed">
             The free tier needs no card. {PRO.name} renews at{" "}
-            {formatUsd(PRO.priceUsd)} a month and can be cancelled from the
+            {formatInr(PRO.priceInr)} a month and can be cancelled from the
             billing page at any time, which also stops the mandate at Razorpay.
           </p>
         </div>
@@ -322,8 +322,8 @@ export function Pricing({
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-8 sm:flex-row">
           <BrandWordmark className="max-h-8 w-auto" />
           <p className="text-muted-foreground text-xs">
-            Prices in US dollars, inclusive of applicable taxes. Payments and
-            autopay handled by Razorpay.
+            Prices in Indian rupees, inclusive of applicable taxes. Payments
+            and autopay handled by Razorpay.
           </p>
         </div>
       </footer>

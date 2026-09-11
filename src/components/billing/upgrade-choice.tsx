@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import {
   PLANS,
   PLAN_PRICES,
-  formatUsd,
-  perMonthUsd,
+  formatInr,
+  perMonthInr,
   plansAbove,
   yearlySavingPercent,
-  yearlySavingUsd,
+  yearlySavingInr,
   type BillingCycle,
   type PaidPlanKey,
 } from "@/lib/billing/plans";
@@ -128,7 +128,7 @@ export function UpgradeChoice({
               </span>
 
               <span className="mt-2 block text-xl font-semibold tabular-nums">
-                {formatUsd(option.priceUsd)}
+                {formatInr(option.priceInr)}
                 <span className="text-muted-foreground ml-1 text-xs font-normal">
                   /mo
                 </span>
@@ -174,7 +174,7 @@ export function UpgradeChoice({
                 </span>
 
                 <span className="mt-2 block text-xl font-semibold tabular-nums">
-                  {formatUsd(Math.round(perMonthUsd(optionPrice) * 100) / 100)}
+                  {formatInr(Math.round(perMonthInr(optionPrice) * 100) / 100)}
                   <span className="text-muted-foreground ml-1 text-xs font-normal">
                     /month
                   </span>
@@ -182,8 +182,8 @@ export function UpgradeChoice({
 
                 <span className="text-muted-foreground/70 mt-1 block text-xs">
                   {option === "yearly"
-                    ? `${formatUsd(optionPrice.priceUsd)} once a year`
-                    : `${formatUsd(optionPrice.priceUsd)} every month`}
+                    ? `${formatInr(optionPrice.priceInr)} once a year`
+                    : `${formatInr(optionPrice.priceInr)} every month`}
                 </span>
               </button>
             );
@@ -194,8 +194,8 @@ export function UpgradeChoice({
       {promo && (
         <div className="space-y-2">
           <p className="text-xs text-[var(--brand-2)]">
-            {promo.label} applied — {formatUsd(promo.originalCents / 100)} →{" "}
-            <strong>{formatUsd(promo.finalCents / 100)}</strong>
+            {promo.label} applied — {formatInr(promo.originalCents / 100)} →{" "}
+            <strong>{formatInr(promo.finalCents / 100)}</strong>
             {/* How many cycles, read from the code itself rather than assumed.
                 Hardcoding "your first month" here silently misdescribed a
                 two-month promo as a one-month one. */}
@@ -214,7 +214,7 @@ export function UpgradeChoice({
           <PromoDisclosure
             cyclesCovered={promo.cyclesCovered}
             discountedCents={promo.finalCents}
-            renewsAtCents={promo.renewsAtCents ?? price.priceCents}
+            renewsAtCents={promo.renewsAtCents ?? price.pricePaise}
             cycle={cycle}
           />
         </div>
@@ -262,8 +262,8 @@ export function UpgradeChoice({
           {busy && <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />}
           {busy
             ? "Opening Razorpay…"
-            : `Get ${PLANS[plan].name} — ${formatUsd(
-                (promo ? promo.finalCents : price.priceCents) / 100,
+            : `Get ${PLANS[plan].name} — ${formatInr(
+                (promo ? promo.finalCents : price.pricePaise) / 100,
               )}${cycle === "yearly" ? "/yr" : "/mo"}`}
         </Button>
 
@@ -279,7 +279,7 @@ export function UpgradeChoice({
 
       {canYearly && cycle === "yearly" && (
         <p className="text-muted-foreground/70 text-xs">
-          Twelve months for the price of ten — {formatUsd(yearlySavingUsd(plan))} less
+          Twelve months for the price of ten — {formatInr(yearlySavingInr(plan))} less
           than paying monthly. Charged once, then again next year.
         </p>
       )}

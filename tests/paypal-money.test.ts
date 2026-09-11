@@ -2,6 +2,21 @@ import { describe, expect, it } from "vitest";
 import { PLAN_PRICES } from "@/lib/billing/plans";
 
 /**
+ * PARKED WHILE PRICING IS IN RUPEES.
+ *
+ * The PayPal path is built and tested but cannot run: PayPal will not enable
+ * Reference Transactions on the account, so no subscription can be approved.
+ * Pricing therefore moved to INR on Razorpay (see the header of plans.ts).
+ *
+ * The money suite below asserts DOLLAR amounts against `PLAN_PRICES`, which now
+ * holds paise — so it is `describe.skip`, not deleted. It is the specification
+ * for the switch back: restore the USD ladder in plans.ts, un-skip this, and it
+ * proves the 100x conversion bug has not returned.
+ *
+ * The status-mapping suite below it is currency-free and still runs.
+ */
+
+/**
  * Cents to PayPal's decimal string.
  *
  * THE BUG THIS GUARDS IS A 100x OVERCHARGE. Razorpay takes an integer of minor
@@ -16,7 +31,7 @@ import { PLAN_PRICES } from "@/lib/billing/plans";
  */
 const usdFromCents = (cents: number): string => (cents / 100).toFixed(2);
 
-describe("usdFromCents", () => {
+describe.skip("usdFromCents (parked: pricing is INR)", () => {
   it("converts cents to a two-decimal string", () => {
     expect(usdFromCents(1900)).toBe("19.00");
     expect(usdFromCents(4900)).toBe("49.00");
@@ -54,7 +69,7 @@ describe("usdFromCents", () => {
 
     for (const plan of ["creator", "studio", "agency"] as const) {
       for (const cycle of ["monthly", "yearly"] as const) {
-        expect(usdFromCents(PLAN_PRICES[plan][cycle].priceCents)).toBe(
+        expect(usdFromCents(PLAN_PRICES[plan][cycle].pricePaise)).toBe(
           expected[`${plan}-${cycle}`],
         );
       }
@@ -64,8 +79,8 @@ describe("usdFromCents", () => {
   it("prices yearly at ten months, not twelve", () => {
     // The promise on the pricing page is "two months free". A yearly plan
     // created at 12x would quietly withdraw the discount customers were sold.
-    expect(PLAN_PRICES.studio.yearly.priceCents).toBe(
-      PLAN_PRICES.studio.monthly.priceCents * 10,
+    expect(PLAN_PRICES.studio.yearly.pricePaise).toBe(
+      PLAN_PRICES.studio.monthly.pricePaise * 10,
     );
   });
 });

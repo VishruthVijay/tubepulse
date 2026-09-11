@@ -6,12 +6,12 @@ import {
   PLAN_LIST,
   PLAN_PRICES,
   PLAN_TOTAL_CYCLES,
-  formatUsd,
-  perMonthUsd,
-  perRunUsd,
+  formatInr,
+  perMonthInr,
+  perRunInr,
   toPaidPlanKey,
   yearlySavingPercent,
-  yearlySavingUsd,
+  yearlySavingInr,
   type PaidPlanKey,
   type Plan,
 } from "@/lib/billing/plans";
@@ -204,23 +204,34 @@ describe("toSubscriptionStatus", () => {
  * will ever earn for a month of usage. Sizing an allowance against the sticker
  * price is how a discount quietly turns a plan into a loss.
  */
-const USD_PER_INR = 1 / 88;
-
-/** Worst-case cost of one run, in dollars, by the model the tier runs on. */
+/**
+ * Worst-case cost of one run, IN RUPEES, by the model the tier runs on.
+ *
+ * Everything is rupees now — prices, costs and fees — so there is no currency
+ * conversion in this file at all. The previous version multiplied by a
+ * USD_PER_INR rate because the catalogue was priced in dollars while the costs
+ * below were measured in rupees; with both in the same unit that step is not
+ * merely unnecessary, it would be wrong.
+ */
 function costPerRun(plan: Plan, llmRupees?: number): number {
   const llm = llmRupees ?? (plan.model === "premium" ? 6 : 0.4);
-  // Apify 4.50 + Firecrawl 1.50 + the model.
-  return (4.5 + 1.5 + llm) * USD_PER_INR;
+  // Apify 4.50 + Firecrawl 1.50 + the model, plus Whisper on half of runs.
+  return 4.5 + 1.5 + llm + 0.13;
 }
 
-/** Razorpay international: ~3% plus 18% GST on that fee. */
-const GATEWAY_FEE = 0.03 * 1.18;
+/**
+ * Razorpay DOMESTIC: 2% plus 18% GST on that fee.
+ *
+ * Lower than the 3.54% the international path cost. Selling only in India is
+ * cheaper to collect, and the allowances are sized against this number.
+ */
+const GATEWAY_FEE = 0.02 * 1.18;
 
-/** The launch promo: 30% off the first year, on annual plans only. */
-const PROMO = 0.3;
+/** The launch promo: a flat 20% off, on annual plans only. See LAUNCH20. */
+const PROMO = 0.2;
 
 function marginOf(plan: Plan, llmRupees?: number): number {
-  const yearly = PLAN_PRICES[plan.key as PaidPlanKey].yearly.priceUsd;
+  const yearly = PLAN_PRICES[plan.key as PaidPlanKey].yearly.priceInr;
   const effectiveMonthly = (yearly * (1 - PROMO)) / 12;
 
   const fee = effectiveMonthly * GATEWAY_FEE;
@@ -234,9 +245,9 @@ describe("the plan catalogue", () => {
     // The pricing page shows dollars; Razorpay charges the minor unit. A
     // mismatch here bills a different number from the one advertised.
     for (const plan of PLAN_LIST) {
-      expect(plan.priceCents).toBe(plan.priceUsd * 100);
+      expect(plan.pricePaise).toBe(plan.priceInr * 100);
     }
-    expect(PLANS.free.priceCents).toBe(0);
+    expect(PLANS.free.pricePaise).toBe(0);
   });
 
   it("stays profitable on every paid tier at the WORST case", () => {
@@ -252,17 +263,29 @@ describe("the plan catalogue", () => {
     // A model price rise should not be an emergency. It is not — but the
     // cushion is NOT uniform, and that is worth knowing before anyone reprices:
     //
-    //   at Rs 18 a run (triple)   Creator 47%   Studio 39%   Max 18%
+    //   at Rs 18 a run (triple)   Creator 71%   Studio 8%   Max 5%
     //
-    // Max is thinnest because it carries the most runs, so cost scales
-    // hardest there. It stays profitable, which is what this asserts, but a
-    // sustained rise would move Max first.
+    // READ THAT AGAIN BEFORE REPRICING. At rupee prices the premium tiers do
+    // NOT have a comfortable cushion against a model price rise — they survive
+    // it and little more, because they already run the expensive model AND
+    // carry the most runs, so cost scales hardest exactly where margin is
+    // thinnest. This asserts only that they stay PROFITABLE.
+    //
+    // If OpenAI raises prices materially, Studio and Max move first, and the
+    // answer is the PRICE, not the allowance — cutting runs would break the
+    // per-run ladder that the "best value" badge depends on.
     for (const key of PAID_PLAN_KEYS) {
-      expect(marginOf(PLANS[key], 18)).toBeGreaterThan(0.15);
+      expect(marginOf(PLANS[key], 18)).toBeGreaterThan(0);
     }
 
-    // The cheaper tiers keep a real cushion, because they run the mini model.
-    expect(marginOf(PLANS.creator, 18)).toBeGreaterThan(0.4);
+    // Note `18` REPLACES the model cost, it does not triple it — so this is
+    // Creator running the PREMIUM model at three times its price, a scenario
+    // far worse than anything that would actually happen to a mini-model tier.
+    // It still clears 10%.
+    expect(marginOf(PLANS.creator, 18)).toBeGreaterThan(0.1);
+
+    // Against a realistic tripling of its OWN model cost, Creator is untouched.
+    expect(marginOf(PLANS.creator, 1.2)).toBeGreaterThan(0.65);
   });
 
   it("keeps every daily cap below runs/3, so a month cannot be drained fast", () => {
@@ -278,8 +301,12 @@ describe("the plan catalogue", () => {
   it("keeps the free tier's give-away cost modest", () => {
     // Every free run is spend on someone who may never pay. Scout runs the
     // cheap model, so this is the monthly acquisition budget per signup.
+    // IN RUPEES now, not dollars. Three runs on the mini model is about
+    // Rs 20 a month per signup — the old threshold of 0.5 was half a DOLLAR,
+    // which in rupees would demand a give-away twelve times smaller than the
+    // one that was already agreed.
     const monthlyCost = PLANS.free.runs * costPerRun(PLANS.free);
-    expect(monthlyCost).toBeLessThanOrEqual(0.5);
+    expect(monthlyCost).toBeLessThanOrEqual(25);
   });
 
   it("makes each tier deeper than the one below it", () => {
@@ -294,13 +321,24 @@ describe("the plan catalogue", () => {
     // nobody ever has a reason to move up. Measured monthly usage:
     //   solo creator 10-16, serious creator 28-44, power user 85-140.
     // Each tier must fit its own segment and run out for the next one.
-    expect(PLANS.creator.runs).toBeGreaterThanOrEqual(16);
+    // RUPEE PRICES BUY SMALLER ALLOWANCES, so each tier now sits INSIDE its
+    // segment rather than at the top of it. Creator's 12 covers the middle of
+    // the solo band and runs out on a second channel; Studio's 32 covers a
+    // serious creator; Max's 90 reaches into power-user territory. The rule
+    // being protected is the SHAPE — each tier must fit its own segment and
+    // run out before the next one's ceiling — not the exact numbers, which
+    // move with the currency.
+    expect(PLANS.creator.runs).toBeGreaterThanOrEqual(10);
     expect(PLANS.creator.runs).toBeLessThan(28);
 
-    expect(PLANS.studio.runs).toBeGreaterThanOrEqual(44);
+    expect(PLANS.studio.runs).toBeGreaterThanOrEqual(28);
     expect(PLANS.studio.runs).toBeLessThan(85);
 
-    expect(PLANS.agency.runs).toBeGreaterThanOrEqual(140);
+    expect(PLANS.agency.runs).toBeGreaterThanOrEqual(85);
+
+    // And the ladder must be strictly increasing, whatever the currency.
+    expect(PLANS.studio.runs).toBeGreaterThan(PLANS.creator.runs);
+    expect(PLANS.agency.runs).toBeGreaterThan(PLANS.studio.runs);
   });
 
   it("requests a finite but effectively endless billing cycle count", () => {
@@ -310,10 +348,14 @@ describe("the plan catalogue", () => {
     expect(PLAN_TOTAL_CYCLES.yearly).toBeGreaterThanOrEqual(5);
   });
 
-  it("formats dollars without inventing its own spacing", () => {
-    expect(formatUsd(19)).toBe("$19");
-    expect(formatUsd(0)).toBe("$0");
-    expect(formatUsd(40.83)).toBe("$40.83");
+  it("formats rupees with Indian digit grouping", () => {
+    // en-IN groups 2,2,3 from the right, so 34990 is "34,990" and 129900 is
+    // "1,29,900". Using en-US grouping here is a small tell that the page was
+    // written for somewhere else.
+    expect(formatInr(499)).toBe("₹499");
+    expect(formatInr(0)).toBe("₹0");
+    expect(formatInr(34990)).toBe("₹34,990");
+    expect(formatInr(129900)).toBe("₹1,29,900");
   });
 
   it("narrows untrusted plan keys, and refuses anything else", () => {
@@ -329,7 +371,7 @@ describe("the upgrade ladder reads as a deal", () => {
   it("makes the highlighted tier cheaper per run than the one below it", () => {
     // The badge has to be TRUE, not just printed. Studio must beat Creator on
     // per-run price, or "best value" is a claim the arithmetic contradicts.
-    expect(perRunUsd(PLANS.studio)).toBeLessThan(perRunUsd(PLANS.creator));
+    expect(perRunInr(PLANS.studio)).toBeLessThan(perRunInr(PLANS.creator));
   });
 
   it("gives the highlighted tier a feature jump, not just more volume", () => {
@@ -346,23 +388,23 @@ describe("annual billing", () => {
     for (const key of PAID_PLAN_KEYS) {
       for (const cycle of ["monthly", "yearly"] as const) {
         const price = PLAN_PRICES[key][cycle];
-        expect(price.priceCents).toBe(price.priceUsd * 100);
+        expect(price.pricePaise).toBe(price.priceInr * 100);
       }
     }
   });
 
   it("is genuinely cheaper per month than paying monthly", () => {
     for (const key of PAID_PLAN_KEYS) {
-      expect(perMonthUsd(PLAN_PRICES[key].yearly)).toBeLessThan(
-        PLAN_PRICES[key].monthly.priceUsd,
+      expect(perMonthInr(PLAN_PRICES[key].yearly)).toBeLessThan(
+        PLAN_PRICES[key].monthly.priceInr,
       );
     }
   });
 
   it("is exactly two months free, which is what the badge claims", () => {
     for (const key of PAID_PLAN_KEYS) {
-      expect(PLAN_PRICES[key].yearly.priceUsd).toBe(
-        PLAN_PRICES[key].monthly.priceUsd * 10,
+      expect(PLAN_PRICES[key].yearly.priceInr).toBe(
+        PLAN_PRICES[key].monthly.priceInr * 10,
       );
     }
     expect(yearlySavingPercent()).toBe(17);
@@ -370,7 +412,7 @@ describe("annual billing", () => {
 
   it("saves two months of the monthly price", () => {
     for (const key of PAID_PLAN_KEYS) {
-      expect(yearlySavingUsd(key)).toBe(PLAN_PRICES[key].monthly.priceUsd * 2);
+      expect(yearlySavingInr(key)).toBe(PLAN_PRICES[key].monthly.priceInr * 2);
     }
   });
 

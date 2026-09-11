@@ -244,7 +244,7 @@ export async function POST(request: Request) {
       // attach the wrong offer — the customer sees one price and is charged
       // another, which is the exact failure this whole module exists to avoid.
       planKey,
-      amountCents: price.priceCents,
+      amountCents: price.pricePaise,
       ownerId: user.id,
     });
 
@@ -323,7 +323,7 @@ export async function POST(request: Request) {
   return NextResponse.json({
     subscriptionId: subscription.id,
     keyId: publicEnv.razorpayKeyId,
-    amount: price.priceCents - discountCents,
+    amount: price.pricePaise - discountCents,
     planKey,
     planName: plan.name,
     cycle,

@@ -9,15 +9,29 @@
  * Pure module, no imports, no environment. Safe from a client component.
  *
  * ---------------------------------------------------------------------------
- * CURRENCY IS USD, GLOBALLY. There is no regional pricing.
+ * CURRENCY IS INR, INDIA ONLY. Changed 2026-09-11.
  *
- * This was considered and rejected. INR pricing that Indian customers would
- * actually pay (₹499) cannot fund US-level allowances — at ₹499 for 50 runs on
- * a promoted annual the margin is NEGATIVE 12%. Regional pricing therefore
- * means regional allowances, i.e. two different products wearing the same tier
- * names. One global price is the simpler, more honest thing, and it is what
- * this file implements. Indian customers will find $19 expensive; that is a
- * known and accepted trade.
+ * The product previously priced in USD globally. That is still the intended
+ * destination — but USD subscriptions need a payment path this business does
+ * not yet have:
+ *
+ *   * Razorpay Subscriptions refuses USD until International Payments is
+ *     approved. Verified against the live account: a USD plan returns
+ *     "Currency provided is not supported" while an INR plan is created fine.
+ *   * PayPal's own Subscriptions API needs Reference Transactions enabled on
+ *     the merchant account, which PayPal does not grant by default.
+ *
+ * Both are pending. Rather than wait, the product sells to India in INR now.
+ * WHEN EITHER APPROVAL LANDS, THIS FILE GOES BACK TO USD — see the USD ladder
+ * preserved at the bottom of this comment, and keep the two in step.
+ *
+ * ALLOWANCES SHRANK WITH THE PRICE, AND THAT IS THE WHOLE POINT.
+ * The previous version of this comment warned that INR pricing at USD
+ * allowances is negative margin, and it was right: Studio at Rs 1299 for the
+ * old 60 runs is MINUS 28% on a promoted annual. Rupee prices therefore buy
+ * rupee-sized allowances. This is the "two products wearing the same tier
+ * names" problem the old note predicted — accepted deliberately, because the
+ * alternative is charging Indian customers $49.
  * ---------------------------------------------------------------------------
  * THE ECONOMICS. Do not "improve" these numbers without redoing this sum.
  * `tests/billing-status.test.ts` fails if any of it stops holding.
@@ -27,41 +41,59 @@
  * transcript extraction. All cost real money per press, so all spend a unit —
  * see BILLABLE_JOB_KINDS in quota.ts.
  *
- * COST PER RUN depends on the model tier, which is now a PLAN FEATURE:
+ * COST PER RUN depends on the model tier, which is a PLAN FEATURE:
  *
  *   Mini-tier model (Scout, Creator)
- *     Apify        ₹4.50
- *     Firecrawl    ₹1.50
- *     LLM          ₹0.40
+ *     Apify        Rs 4.50
+ *     Firecrawl    Rs 1.50
+ *     LLM          Rs 0.40
  *     ----------------------------------------------------------------
- *     Total        ₹6.40   ≈ $0.073 at ₹88/$
+ *     Total        Rs 6.40
  *
  *   Premium model (Studio, Max)
- *     Apify        ₹4.50
- *     Firecrawl    ₹1.50
- *     LLM          ₹6.00
+ *     Apify        Rs 4.50
+ *     Firecrawl    Rs 1.50
+ *     LLM          Rs 6.00
  *     ----------------------------------------------------------------
- *     Total        ₹12.00  ≈ $0.136 at ₹88/$
+ *     Total        Rs 12.00
  *
- * An INSTAGRAM run costs about ₹9.50 in Apify alone — 4-6x YouTube's rate,
+ * An INSTAGRAM run costs about Rs 9.50 in Apify alone — 4-6x YouTube's rate,
  * measured at $0.0027 an item. That is why `postsPerRun` is smaller than
  * `videosPerRun`, and why Instagram is gated to Studio and above: the depth
  * moves and the tier moves, the price does not.
  *
- * Whisper voice transcription adds ~$0.003 per voice-initiated request. Assumed
- * at 50% of runs in the sums below, which is generous.
+ * Whisper voice transcription adds ~Rs 0.26 per voice-initiated request.
+ * Assumed at 50% of runs in the sums below, which is generous.
  *
- * Razorpay international takes ~3% plus 18% GST — 3.54% of whatever is charged.
- * This is HIGHER than the 2.36% domestic rate the old INR pricing assumed.
+ * RAZORPAY DOMESTIC takes 2% plus 18% GST on the fee — 2.36% of the charge.
+ * That is the number these sums use, and it is LOWER than the 3.54% the
+ * international path cost. Selling only in India is cheaper to collect.
  *
  * THE WORST CASE IS NOT THE MONTHLY PRICE. It is the yearly price with the
- * 30%-off first-year promo applied, spread across twelve months — that is the
- * least revenue a month of usage will ever earn. Every allowance below is
- * sized against THAT number, not the sticker price:
+ * launch promo applied, spread across twelve months — the least revenue a
+ * month of usage will ever earn. Every allowance is sized against THAT:
  *
- *   Creator  $19/mo → $133/yr promoted → $11.08/mo effective → 83% margin
- *   Studio   $49/mo → $343/yr promoted → $28.58/mo effective → 68% margin
- *   Max      $89/mo → $623/yr promoted → $51.92/mo effective → 57% margin
+ *   Creator  Rs 499/mo   -> Rs 4,990/yr,  20% off -> 76% margin
+ *   Studio   Rs 1,299/mo -> Rs 12,990/yr, 20% off -> 54% margin
+ *   Max      Rs 3,499/mo -> Rs 34,990/yr, 20% off -> 52% margin
+ *
+ * At the monthly sticker price with no promo those become 84% / 69% / 68%.
+ *
+ * WHY CREATOR GIVES ONLY 12 RUNS, which looks mean next to the old 20.
+ * The pricing page badges Studio "best value", and a test enforces that the
+ * badge is TRUE: Studio must cost less per run than Creator. Studio runs the
+ * PREMIUM model at Rs 12/run against Creator's Rs 6.40, and at 50% margin a
+ * premium tier cannot be cheaper than about Rs 37 a run. Creator at 15 runs
+ * priced itself at Rs 33 a run — BELOW that floor — which made the badge
+ * arithmetically impossible and left Studio dearer per run than the tier
+ * beneath it. Twelve runs puts Creator at Rs 41.6 and restores the ladder:
+ * 41.6 -> 40.6 -> 38.9, falling at every step. It still covers the solo
+ * creator band (10-16 runs), which is the segment it is for.
+ *
+ * THE LAUNCH PROMO IS A FLAT 20%, not the old tiered 30/40/50. At rupee prices
+ * the tiered version took Max to roughly 30% worst case, which is too thin for
+ * a tier whose per-run costs are real. One rate is also one sentence to
+ * explain. The code is LAUNCH20.
  *
  * ALLOWANCES ARE SIZED TO REAL HUMAN USAGE, NOT TO THE MARGIN CEILING.
  * This is the important design rule and it is easy to get wrong. An allowance
@@ -72,23 +104,35 @@
  *   Serious creator, 1-3 channels, posts 3x/week  28-44 runs a month
  *   Power user, many channels at once             85-140 runs a month
  *
- * So each tier's allowance sits just above its own segment's ceiling and below
- * the next segment's floor. Creator's 20 comfortably fits a solo creator and
- * runs out the moment they scale to three channels. Studio's 60 fits a serious
- * creator and runs out at power-user volume. That is what makes the ladder
- * real rather than decorative.
+ * Creator's 12 fits a solo creator and runs out the moment they take on a
+ * second channel. Studio's 32 covers a serious creator and runs out well before
+ * power-user volume. Max's 90 reaches into the power-user band. Each tier ends
+ * inside the next segment's floor, which is what makes the ladder real rather
+ * than decorative.
  *
  * RAISING AN ALLOWANCE WITHOUT RAISING ITS PRICE BREAKS THE LADDER, not just
- * the margin. If Creator gave 50 runs, no solo creator would ever need Studio,
- * and the middle tier would exist only to be ignored.
+ * the margin — and on this ladder it also breaks the "best value" badge, which
+ * is checked by a test rather than trusted.
  *
  * FREE costs real money too: every free run is spend on somebody who may never
- * pay. Three runs a month on the mini model is about $0.22 per signup per
+ * pay. Three runs a month on the mini model is about Rs 20 per signup per
  * month — cheap enough to leave recurring rather than one-time, which keeps
  * people in the product long enough to convert.
  *
  * THE DAILY CAP IS DELIBERATELY BELOW runs/3, so a month cannot be drained in
  * under three days. It is a spend guard, not a burst limit.
+ * ---------------------------------------------------------------------------
+ * THE USD LADDER, PRESERVED FOR THE SWITCH BACK.
+ *
+ * When International Payments or Reference Transactions is approved, restore:
+ *
+ *   Creator  $19  20 runs  100 videos/run   5/day
+ *   Studio   $49  60 runs  150 videos/run  40 posts  15/day
+ *   Max      $89  150 runs 200 videos/run  60 posts  35/day
+ *
+ * Those allowances are affordable at USD prices and were sized by the same
+ * method. Switching back means this file, `formatMoney`, the currency sent by
+ * `scripts/create-razorpay-plan.mjs`, and six new Razorpay plan objects.
  * ---------------------------------------------------------------------------
  */
 
@@ -143,9 +187,9 @@ export interface Plan {
   /** One line under the name. Who this tier is actually for. */
   tagline: string;
   /** Dollars per month. 0 for free. */
-  priceUsd: number;
+  priceInr: number;
   /** Cents — what Razorpay actually charges. Money in the smallest unit only. */
-  priceCents: number;
+  pricePaise: number;
   /** Billable runs included per month. */
   runs: number;
   /** Whether `runs` refills each month. True for every tier including free. */
@@ -166,8 +210,8 @@ export const PLANS: Record<PlanKey, Plan> = {
     key: "free",
     name: "Scout",
     tagline: "See whether the scoring changes how you pick videos.",
-    priceUsd: 0,
-    priceCents: 0,
+    priceInr: 0,
+    pricePaise: 0,
     runs: 3,
     recurring: true,
     videosPerRun: 50,
@@ -192,13 +236,13 @@ export const PLANS: Record<PlanKey, Plan> = {
     key: "creator",
     name: "Creator",
     tagline: "One channel, posting every week.",
-    priceUsd: 19,
-    priceCents: 1_900,
-    runs: 20,
+    priceInr: 499,
+    pricePaise: 49900,
+    runs: 12,
     recurring: true,
     videosPerRun: 100,
     postsPerRun: 0,
-    dailyCap: 5,
+    dailyCap: 3,
     model: "mini",
     features: {
       instagram: false,
@@ -218,13 +262,13 @@ export const PLANS: Record<PlanKey, Plan> = {
     key: "studio",
     name: "Studio",
     tagline: "A few channels, and you post like it is the job.",
-    priceUsd: 49,
-    priceCents: 4_900,
-    runs: 60,
+    priceInr: 1299,
+    pricePaise: 129900,
+    runs: 32,
     recurring: true,
     videosPerRun: 150,
     postsPerRun: 40,
-    dailyCap: 15,
+    dailyCap: 8,
     model: "premium",
     features: {
       instagram: true,
@@ -244,13 +288,13 @@ export const PLANS: Record<PlanKey, Plan> = {
     key: "agency",
     name: "Max",
     tagline: "Every channel you track, and a hook bank that keeps compounding.",
-    priceUsd: 89,
-    priceCents: 8_900,
-    runs: 150,
+    priceInr: 3499,
+    pricePaise: 349900,
+    runs: 90,
     recurring: true,
     videosPerRun: 200,
     postsPerRun: 60,
-    dailyCap: 35,
+    dailyCap: 22,
     model: "premium",
     features: {
       instagram: true,
@@ -353,8 +397,8 @@ export function plansAbove(current: PaidPlanKey | null): PaidPlanKey[] {
  */
 export interface PlanPrice {
   cycle: BillingCycle;
-  priceUsd: number;
-  priceCents: number;
+  priceInr: number;
+  pricePaise: number;
   /** Months covered by one charge. Drives every "per month" figure shown. */
   months: number;
   /** The env var holding this tier-and-cycle's Razorpay plan id. */
@@ -371,16 +415,16 @@ function pricesFor(plan: Plan): Record<BillingCycle, PlanPrice> {
   return {
     monthly: {
       cycle: "monthly",
-      priceUsd: plan.priceUsd,
-      priceCents: plan.priceCents,
+      priceInr: plan.priceInr,
+      pricePaise: plan.pricePaise,
       months: 1,
       envVar: `RAZORPAY_PLAN_ID_${upper}_MONTHLY`,
       razorpayPeriod: "monthly",
     },
     yearly: {
       cycle: "yearly",
-      priceUsd: plan.priceUsd * YEARLY_MONTHS_CHARGED,
-      priceCents: plan.priceCents * YEARLY_MONTHS_CHARGED,
+      priceInr: plan.priceInr * YEARLY_MONTHS_CHARGED,
+      pricePaise: plan.pricePaise * YEARLY_MONTHS_CHARGED,
       months: 12,
       envVar: `RAZORPAY_PLAN_ID_${upper}_YEARLY`,
       razorpayPeriod: "yearly",
@@ -400,14 +444,14 @@ export function toBillingCycle(value: string): BillingCycle | null {
 }
 
 /** What one month works out at on this cycle — the honest comparison. */
-export function perMonthUsd(price: PlanPrice): number {
-  return price.priceUsd / price.months;
+export function perMonthInr(price: PlanPrice): number {
+  return price.priceInr / price.months;
 }
 
 /** Dollars saved over a year by paying yearly rather than monthly. */
-export function yearlySavingUsd(key: PaidPlanKey): number {
+export function yearlySavingInr(key: PaidPlanKey): number {
   const prices = PLAN_PRICES[key];
-  return prices.monthly.priceUsd * 12 - prices.yearly.priceUsd;
+  return prices.monthly.priceInr * 12 - prices.yearly.priceInr;
 }
 
 /** That saving as a percentage, for the "save 17%" badge. */
@@ -420,9 +464,9 @@ export function runsPerCycle(plan: Plan, price: PlanPrice): number {
   return plan.runs * price.months;
 }
 
-/** Dollars per run, for comparing tiers against each other. */
-export function perRunUsd(plan: Plan): number {
-  return plan.runs === 0 ? 0 : plan.priceUsd / plan.runs;
+/** Rupees per run, for comparing tiers against each other. */
+export function perRunInr(plan: Plan): number {
+  return plan.runs === 0 ? 0 : plan.priceInr / plan.runs;
 }
 
 /**
@@ -449,19 +493,32 @@ export function spellOutCapitalised(value: number): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
-/** "$19" — one formatter, so no page invents its own currency spacing. */
-export function formatUsd(amount: number): string {
+/**
+ * "Rs 1,299" — one formatter, so no page invents its own currency spacing.
+ *
+ * `en-IN` grouping is deliberate: Indian digit grouping is 2,2,3 from the
+ * right, so 29990 is "29,990" and 129900 would be "1,29,900". Formatting a
+ * rupee price with en-US grouping is a small tell that the page was written
+ * for somewhere else.
+ *
+ * The symbol is the rupee sign. It is written as an escape rather than pasted
+ * so the file stays ASCII — this repo has already had a mojibake incident
+ * where a pasted symbol reached a Razorpay plan name as "TubePulse Pro ?".
+ */
+const RUPEE = "\u20B9";
+
+export function formatInr(amount: number): string {
   return Number.isInteger(amount)
-    ? `$${amount.toLocaleString("en-US")}`
-    : `$${amount.toLocaleString("en-US", {
+    ? `${RUPEE}${amount.toLocaleString("en-IN")}`
+    : `${RUPEE}${amount.toLocaleString("en-IN", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       })}`;
 }
 
-/** Cents → dollars. Razorpay speaks the minor unit everywhere; humans do not. */
-export function centsToUsd(cents: number): number {
-  return cents / 100;
+/** Paise → rupees. Razorpay speaks the minor unit everywhere; humans do not. */
+export function paiseToInr(paise: number): number {
+  return paise / 100;
 }
 
 /**

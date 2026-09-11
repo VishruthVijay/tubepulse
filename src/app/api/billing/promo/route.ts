@@ -110,5 +110,5 @@ function amountFor(body: {
   const cycle = toBillingCycle(body.cycle ?? "monthly");
   const plan = toPaidPlanKey(body.plan ?? "");
 
-  return cycle && plan ? PLAN_PRICES[plan][cycle].priceCents : null;
+  return cycle && plan ? PLAN_PRICES[plan][cycle].pricePaise : null;
 }

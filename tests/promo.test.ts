@@ -71,7 +71,7 @@ describe("discountFor", () => {
     // stops a code written for a $49 monthly charge from taking a fortune off
     // the $490 annual one.
     const capped = promo({ kind: "percent", value: 50, maxDiscountCents: 2_500 });
-    expect(discountFor(capped, PLAN_PRICES.studio.yearly.priceCents)).toBe(2_500);
+    expect(discountFor(capped, PLAN_PRICES.studio.yearly.pricePaise)).toBe(2_500);
   });
 
   it("never discounts more than the thing costs", () => {
@@ -99,15 +99,18 @@ describe("discountFor", () => {
 });
 
 describe("evaluatePromo", () => {
-  const amount = PLAN_PRICES.studio.monthly.priceCents;
+  const amount = PLAN_PRICES.studio.monthly.pricePaise;
 
   it("accepts a good code and prices it", () => {
     const result = evaluatePromo({ promo: promo(), target: "subscription", amountCents: amount, now: NOW });
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.discountCents).toBe(980);
-      expect(result.finalCents).toBe(amount - 980);
+      // Derived from the catalogue rather than hardcoded: the percentage is
+      // the promise, the rupee figure follows from whatever Studio costs.
+      const expected = Math.round(amount * 0.2);
+      expect(result.discountCents).toBe(expected);
+      expect(result.finalCents).toBe(amount - expected);
       expect(result.razorpayOfferId).toBe("offer_test123");
     }
   });
@@ -253,7 +256,7 @@ describe("evaluatePromo", () => {
 describe("describe", () => {
   it("labels both kinds for the badge", () => {
     expect(describePromo(promo({ kind: "percent", value: 20 }))).toBe("20% off");
-    expect(describePromo(promo({ kind: "flat", value: 1_000 }))).toBe("$10 off");
+    expect(describePromo(promo({ kind: "flat", value: 1_000 }))).toBe("₹10 off");
   });
 });
 
@@ -263,7 +266,7 @@ describe("the first-year promo, and the trap underneath it", () => {
   // to build "30% off your first year" quietly produces "30% off forever", and
   // nobody notices until the second renewal. These are the guards.
 
-  const yearly = PLAN_PRICES.studio.yearly.priceCents;
+  const yearly = PLAN_PRICES.studio.yearly.pricePaise;
 
   function launchCode(over: Partial<PromoCode> = {}): PromoCode {
     return promo({
@@ -326,7 +329,7 @@ describe("the first-year promo, and the trap underneath it", () => {
     if (result.ok) {
       // The UI renders this verbatim. It must name the real renewal price.
       expect(result.renewalNotice).toContain("Renews at");
-      expect(result.renewalNotice).toContain("490");
+      expect(result.renewalNotice).toContain("12,990");
     }
   });
 
@@ -350,7 +353,7 @@ describe("the first-year promo, and the trap underneath it", () => {
       promo: launchCode(),
       target: "subscription",
       cycle: "monthly",
-      amountCents: PLAN_PRICES.studio.monthly.priceCents,
+      amountCents: PLAN_PRICES.studio.monthly.pricePaise,
       now: NOW,
     });
 
@@ -417,7 +420,7 @@ function tiered(overrides: Partial<PromoCode> = {}): PromoCode {
       agency: "offer_agency",
     },
     appliesToCycles: "first_two_cycles",
-    renewsAtCents: 4_900,
+    renewsAtCents: 129_900,
     razorpayOfferId: null,
     ...overrides,
   });
@@ -493,17 +496,18 @@ describe("the tiered launch code", () => {
       target: "subscription",
       cycle: "monthly",
       planKey: "studio",
-      amountCents: 4_900,
+      amountCents: 129_900,
       now: NOW,
     });
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.discountCents).toBe(1_960);
-      expect(result.finalCents).toBe(2_940);
+      // Studio's tier rate is 40%: 40% of Rs 1,299 is Rs 519.60.
+      expect(result.discountCents).toBe(51_960);
+      expect(result.finalCents).toBe(77_940);
       expect(result.razorpayOfferId).toBe("offer_studio");
       expect(result.label).toBe("40% off");
       expect(result.cyclesCovered).toBe(2);
-      expect(result.renewsAtCents).toBe(4_900);
+      expect(result.renewsAtCents).toBe(129_900);
     }
   });
 
@@ -516,7 +520,7 @@ describe("the tiered launch code", () => {
     const notice = renewalNoticeFor(tiered(), "subscription");
     expect(notice).toContain("two months");
     expect(notice).toContain("third month");
-    expect(notice).toContain("$49");
+    expect(notice).toContain("1,299");
     expect(notice).not.toContain("year");
   });
 
@@ -527,9 +531,9 @@ describe("the tiered launch code", () => {
     // and Max was told $49 when it renews at $89 — a wrong price shown at the
     // card step, which is the exact failure this module exists to prevent.
     const cases: [PlanKey, number, string][] = [
-      ["creator", 1_900, "$19"],
-      ["studio", 4_900, "$49"],
-      ["agency", 8_900, "$89"],
+      ["creator", 49_900, "₹499"],
+      ["studio", 129_900, "₹1,299"],
+      ["agency", 349_900, "₹3,499"],
     ];
 
     for (const [planKey, listCents, shown] of cases) {

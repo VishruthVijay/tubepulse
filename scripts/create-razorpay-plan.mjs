@@ -79,12 +79,12 @@ async function main() {
     console.log(`\nDRY RUN — nothing is created, no API call is made.\n`);
     for (const plan of plans) {
       console.log(
-        `  ${plan.name.padEnd(28)} $${(plan.amountCents / 100)
+        `  ${plan.name.padEnd(28)} Rs ${(plan.amountPaise / 100)
           .toFixed(2)
           .padStart(7)}  ${plan.period.padEnd(7)}  ${plan.envVar}`,
       );
     }
-    console.log(`\n${plans.length} plans would be created in USD.\n`);
+    console.log(`\n${plans.length} plans would be created in INR.\n`);
     return;
   }
 
@@ -112,13 +112,13 @@ async function main() {
     );
   }
 
-  console.log(`\nCreating ${plans.length} plans in ${mode} mode, in USD...\n`);
+  console.log(`\nCreating ${plans.length} plans in ${mode} mode, in INR...\n`);
 
   const created = [];
 
   for (const plan of plans) {
     console.log(
-      `  ${plan.name.padEnd(28)} $${(plan.amountCents / 100).toFixed(2).padStart(7)}  ${plan.period}`,
+      `  ${plan.name.padEnd(28)} Rs ${(plan.amountPaise / 100).toFixed(2).padStart(7)}  ${plan.period}`,
     );
 
     const response = await fetch("https://api.razorpay.com/v1/plans", {
@@ -133,8 +133,8 @@ async function main() {
         item: {
           name: plan.name,
           description: plan.description,
-          amount: plan.amountCents,
-          currency: "USD",
+          amount: plan.amountPaise,
+          currency: "INR",
         },
         notes: { created_by: "scripts/create-razorpay-plan.mjs", tier: plan.key },
       }),
@@ -202,7 +202,7 @@ function buildPlans(prices) {
       envVar: `RAZORPAY_PLAN_ID_${upper}_MONTHLY`,
       name: `TubePulse ${tier.label} — Monthly`,
       description: tier.blurb,
-      amountCents: monthlyCents,
+      amountPaise: monthlyCents,
       period: "monthly",
     });
 
@@ -211,7 +211,7 @@ function buildPlans(prices) {
       envVar: `RAZORPAY_PLAN_ID_${upper}_YEARLY`,
       name: `TubePulse ${tier.label} — Yearly`,
       description: `${tier.blurb}. Two months free.`,
-      amountCents: monthlyCents * YEARLY_MONTHS_CHARGED,
+      amountPaise: monthlyCents * YEARLY_MONTHS_CHARGED,
       period: "yearly",
     });
   }
@@ -235,10 +235,10 @@ function readPricesFromPlansFile() {
     );
   }
 
-  // Each tier appears as   key: "creator",  ... priceCents: 1_900,
+  // Each tier appears as   key: "creator",  ... pricePaise: 49_900,
   const prices = {};
   const blocks = source.matchAll(
-    /key:\s*"(creator|studio|agency)"[\s\S]{0,600}?priceCents:\s*([\d_]+)/g,
+    /key:\s*"(creator|studio|agency)"[\s\S]{0,600}?pricePaise:\s*([\d_]+)/g,
   );
   for (const match of blocks) {
     prices[match[1]] = Number(match[2].replace(/_/g, ""));

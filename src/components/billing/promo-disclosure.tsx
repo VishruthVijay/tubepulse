@@ -1,5 +1,7 @@
 "use client";
 
+import { formatInr, paiseToInr } from "@/lib/billing/plans";
+
 import { CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -63,7 +65,7 @@ export function PromoDisclosure({
               : `${capitalise(numberWord(cyclesCovered))} ${plural}`}
           </span>
           <span className="font-medium text-[var(--brand-2)]">
-            {formatCents(discountedCents)}/{unit}
+            {formatInr(paiseToInr(discountedCents))}/{unit}
           </span>
         </li>
         <li className="flex items-baseline justify-between gap-3">
@@ -71,7 +73,7 @@ export function PromoDisclosure({
             From {ordinal(nextIndex)} {unit}
           </span>
           <span className="font-medium">
-            {formatCents(renewsAtCents)}/{unit}
+            {formatInr(paiseToInr(renewsAtCents))}/{unit}
           </span>
         </li>
       </ol>
@@ -81,7 +83,7 @@ export function PromoDisclosure({
           the price rises is a customer; someone who finds out afterwards is a
           dispute. */}
       <p className="text-muted-foreground mt-2.5 text-[0.7rem] leading-relaxed">
-        Your card is charged {formatCents(discountedCents)} now. Cancel any time
+        Your card is charged {formatInr(paiseToInr(discountedCents))} now. Cancel any time
         before the {ordinal(nextIndex)} {unit} and you are never charged the
         full price.
       </p>
@@ -89,15 +91,16 @@ export function PromoDisclosure({
   );
 }
 
-function formatCents(cents: number): string {
-  const dollars = cents / 100;
-  return Number.isInteger(dollars)
-    ? `$${dollars.toLocaleString("en-US")}`
-    : `$${dollars.toLocaleString("en-US", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`;
-}
+/**
+ * THE THIRD COPY OF THIS FORMATTER, and the reason it is now an import.
+ *
+ * There were three: here, in `promo.ts`, and in `plans.ts`. When pricing moved
+ * to rupees, two of them were left formatting dollars — so a customer on a
+ * rupee plan was shown "$1,299" in the one sentence that tells them what they
+ * will be charged when the discount ends. `formatInr` in plans.ts is now the
+ * only implementation; plans.ts is a pure module with no imports, so importing
+ * it from a client component is safe.
+ */
 
 /** Small numbers read better as words in a sentence. */
 function numberWord(n: number): string {
