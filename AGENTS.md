@@ -30,7 +30,7 @@ npm run dev        # local dev server
 npm run db:sql     # print all migrations for the Supabase SQL editor
                    # (Windows PowerShell: npm.cmd, not npm — see below)
 npm run db:sql -- --from 0003   # only the ones not yet applied
-npm run razorpay:plan  # create the ₹499 Pro plan at Razorpay, print its id
+npm run razorpay:plan  # create the six INR plans at Razorpay, print their ids
 npm run check:env  # fail if .env.example holds a real value
 npm run typecheck  # tsc --noEmit
 npm run lint       # eslint
@@ -417,13 +417,35 @@ fixing a bug — the code fix alone is half the job.
   subscribers stay on the old plan until they resubscribe.
 - **Razorpay has no "until cancelled".** `total_count` is mandatory on a
   subscription; we send 100 monthly cycles. See `PRO_TOTAL_CYCLES`.
-- **The Rs 499 price survives gpt-4o, but 20 scrapes is the ceiling.** One
-  scrape costs about Rs 12 on gpt-4o versus Rs 6 on a mini model; 20 scrapes
-  leaves 49% on the expensive model, 74% on the cheap one. Every extra scrape
-  costs Rs 12 and earns nothing — 25 would drop it to 37%, 30 to 25%. Raise the
-  price, not the allowance. A test in `tests/billing-status.test.ts` fails below
-  45%, so `OPENAI_MODEL` is no longer a pricing decision. The Rs 399/30 version
-  was.
+- **PRICING IS INR, INDIA ONLY, since 11 Sep 2026.** Creator Rs 499/12 runs,
+  Studio Rs 1,299/32, Max Rs 3,499/90. It was USD globally until Razorpay
+  refused USD (International Payments still unapproved) and PayPal refused to
+  enable Reference Transactions. The USD ladder is preserved in the header of
+  `lib/billing/plans.ts` for the switch back. Fields are `priceInr` and
+  `pricePaise`; the formatter is `formatInr`, which uses en-IN grouping.
+- **Creator gives 12 runs, not 15, and the reason is the badge.** The pricing
+  page calls Studio "best value" and a test enforces that this is TRUE: Studio
+  must cost less per run than Creator. Studio runs the PREMIUM model, and at
+  50% margin a premium tier cannot go below about Rs 37 a run. Creator at 15
+  priced itself at Rs 33 — below that floor — making the badge arithmetically
+  impossible. Raising Creator's allowance breaks the ladder, not just margin.
+- **The money formatter existed THREE TIMES and two were left in dollars.**
+  `plans.ts`, `promo.ts` and `promo-disclosure.tsx` each had their own copy, so
+  after the currency switch a rupee customer was shown "Renews at $12,990" in
+  the one sentence that states what they pay when the discount ends. There is
+  now one implementation in `plans.ts`, imported by the others. `formatInr`
+  takes RUPEES; props named `*Cents`/`*Paise` are MINOR UNITS and must go
+  through `paiseToInr` first.
+- **The launch code is LAUNCH20, a flat 20%** (migration 0017), not the old
+  tiered 30/40/50. At rupee prices the tiered version took Max to roughly 30%
+  worst-case margin, too thin for a tier whose per-run costs are real.
+- **The ALLOWANCE is the ceiling, not the price.** A premium-model run costs
+  about Rs 12 against Rs 6.40 on the mini model, and every extra run earns
+  nothing — so raise the PRICE, never the allowance. `billing-status.test.ts`
+  fails below 45% worst-case margin, which is what keeps `OPENAI_MODEL` from
+  being a pricing decision. At rupee prices the premium tiers have NO
+  comfortable cushion against a model price rise: tripling the model cost
+  leaves Studio at 8% and Max at 5%. They survive it and little more.
 - **`/project` is the hub; the project id stays in a COOKIE, not the URL.**
   Clicking a project on `/projects` sets `tp_project` and lands on `/project`,
   which is why every workspace page keeps a clean path (`/outliers`, never
