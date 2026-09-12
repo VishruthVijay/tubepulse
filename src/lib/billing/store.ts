@@ -133,6 +133,25 @@ export async function recordSubscription(
   const { error } = await writeClient().from("subscriptions").upsert(
     {
       owner_id: ownerId,
+      /*
+       * Claim the row for Razorpay, and DROP any PayPal ids on it.
+       *
+       * The upsert keys on owner_id, so one person has exactly one row and
+       * whichever provider they last touched overwrites it. Writing only our
+       * own ids left the other provider's behind: a real row here ended up
+       * `provider: paypal` while still carrying `razorpay_subscription_id`,
+       * which made the billing page ask whether PAYPAL was configured and
+       * report five PAYPAL_* variables missing on a rupee-only deploy.
+       *
+       * The 0016 constraint is meant to catch exactly this, but it exempts
+       * `status = 'created'` — a row legitimately holds no id between checkout
+       * opening and approval — and an abandoned checkout stays at 'created'
+       * forever. That is the gap this closes.
+       */
+      provider: "razorpay",
+      paypal_subscription_id: null,
+      paypal_plan_id: null,
+      paypal_payer_id: null,
       // Only write the tier when it is actually known. Defaulting here would
       // silently move a paying Max customer onto Creator the first time a
       // webhook arrived without its note — the column's own default covers a
@@ -187,7 +206,14 @@ export async function recordPaypalSubscription(
   const { error } = await writeClient().from("subscriptions").upsert(
     {
       owner_id: ownerId,
+      // Claim the row for PayPal and drop any Razorpay ids on it — the mirror
+      // of the Razorpay path above, and for the same reason: the upsert keys
+      // on owner_id, so a switch of provider must not leave the other one's
+      // ids behind. See the long note there.
       provider: "paypal",
+      razorpay_subscription_id: null,
+      razorpay_customer_id: null,
+      razorpay_plan_id: null,
       // Same rule as the Razorpay path: only write the tier when it is known.
       // Defaulting would silently move a paying customer onto another plan the
       // first time a webhook arrived without one.
