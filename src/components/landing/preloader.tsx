@@ -99,7 +99,21 @@ export function Preloader() {
 
   return (
     <div
-      className="fixed inset-0 z-[90]"
+      /*
+       * pointer-events-none is load-bearing, not cosmetic.
+       *
+       * The exit runs in two stages: the panels slide away at +260ms, and the
+       * element is only removed at +1400ms. For that second in between, the
+       * curtain is invisible but still a full-viewport element at z-90 — and
+       * it swallowed every click on the page. The pricing CTAs looked broken
+       * because they are the first thing anyone reaches for on a cold load;
+       * the nav was just as dead. sessionStorage hid it from us, since a
+       * reload skips the intro entirely and "fixes" it.
+       *
+       * Nothing in here is interactive, so refusing pointer events outright
+       * is correct at every stage, not only while leaving.
+       */
+      className="pointer-events-none fixed inset-0 z-[90]"
       role="status"
       aria-live="polite"
       aria-label={`Loading, ${shown} percent`}
