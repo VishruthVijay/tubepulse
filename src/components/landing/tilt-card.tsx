@@ -77,7 +77,24 @@ export function TiltCard({
           }}
         />
 
-        <div className="relative [transform:translateZ(28px)] [transform-style:preserve-3d]">
+        {/*
+          * transform-style is FLAT here, and that is load-bearing.
+          *
+          * preserve-3d on this layer put every interactive child into the
+          * card's 3D context. Chrome then painted the buttons where you see
+          * them but hit-tested them against their untransformed geometry, so
+          * a click on "Choose Studio" landed on the div BEHIND the link and
+          * did nothing. Verified on the live page: the anchor was visible,
+          * opacity 1, pointer-events auto, and a direct DOM .click() navigated
+          * fine — yet not one point inside its own rectangle hit-tested to it.
+          * Flattening this layer fixed the hit-test immediately.
+          *
+          * translateZ(28px) is kept: it still lifts the content off the glass
+          * under the parent's perspective, which is the whole point of the
+          * effect. It is the nested 3D CONTEXT that broke clicks, not the
+          * offset itself.
+          */}
+        <div className="relative [transform:translateZ(28px)] [transform-style:flat]">
           {children}
         </div>
       </div>
